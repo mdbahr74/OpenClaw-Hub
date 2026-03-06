@@ -96,13 +96,7 @@ OpenClaw-Hub/
 ├── notifications.js      # Notification handling
 └── package.json          # Project metadata and scripts
 
-## 📸 Screenshots
 
-Here's a look at the current interface:
-
-| Main Dashboard | API & Settings | Chat History |
-| :---: | :---: | :---: |
-| ![Main Dashboard](https://i.imgur.com/lmj9MUv.png) | ![API & Settings](https://i.imgur.com/WgJ4cF1.png) | ![Chat History](https://i.imgur.com/UZaaGXx.png) |
 
 
 Vision
