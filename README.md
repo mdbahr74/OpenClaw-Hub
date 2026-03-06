@@ -1,6 +1,9 @@
-<img width="2078" height="1114" alt="Screenshot_20260306_145633" src="https://github.com/user-attachments/assets/f88422c2-6c38-4b15-abef-705db0470368" />
-<img width="2078" height="1114" alt="Screenshot_20260306_145615" src="https://github.com/user-attachments/assets/45cc0d4f-49cc-4752-bab6-b48d1cc27249" />
-<img width="2078" height="1114" alt="Screenshot_20260306_145543" src="https://github.com/user-attachments/assets/f9a34092-b908-4512-be91-046d58854862" />
+<img width="2078" height="1114" alt="Screenshot_20260306_145543" src="https://github.com/user-attachments/assets/902e4a62-2848-4637-b1b7-7bcebdd8cc0e" />
+<img width="2078" height="1114" alt="Screenshot_20260306_145615" src="https://github.com/user-attachments/assets/b44123d1-fae4-4dcf-9a03-bb2345e86a2a" />
+<img width="2078" height="1114" alt="Screenshot_20260306_145633" src="https://github.com/user-attachments/assets/8a9128b6-0280-4b64-8215-005ebaf4a335" />
+
+
+
 # OpenClaw Hub
 
 OpenClaw Hub is a local-first Electron desktop app built to serve as a **mission control center** for AI chats, agents, integrations, notifications, and workflow status.
