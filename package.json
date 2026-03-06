@@ -1,0 +1,15 @@
+{
+  "name": "openclaw-hub",
+  "version": "1.0.0",
+  "description": "OpenClaw Hub desktop workspace",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^30.0.0",
+    "openai": "^6.3.0",
+    "ws": "^8.19.0"
+  }
+}

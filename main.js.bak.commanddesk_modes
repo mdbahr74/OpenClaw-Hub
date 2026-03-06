@@ -1,0 +1,472 @@
+import { app, BrowserWindow, ipcMain, session } from "electron";
+import { promises as fs } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { spawn } from "child_process";
+import { loadMemory, saveMemory } from "./memory/memory.js";
+import { getOpenAIKey, setOpenAIKey, getChromiumConfig } from "./config/settings.js";
+import { listNextEvents } from "./googleAPI.js";
+import { sendChatThroughGateway } from "./gatewayClient.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const chatsDir = path.join(__dirname, "chats");
+const mergedChatsFile = path.join(chatsDir, "merged_chats.json");
+const dataDir = path.join(__dirname, "data");
+const webAppsConfigFile = path.join(dataDir, "webapps.json");
+const todayNotesFile = path.join(dataDir, "today_notes.json");
+
+let mainWindow;
+
+function createMainWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1100,
+    height: 750,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      webviewTag: true
+    }
+  });
+
+  mainWindow.loadFile(path.join(__dirname, "app.html"));
+}
+
+async function readMergedChats() {
+  try {
+    const raw = await fs.readFile(mergedChatsFile, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+async function writeMergedChats(chats) {
+  await fs.mkdir(chatsDir, { recursive: true });
+  await fs.writeFile(mergedChatsFile, JSON.stringify(chats, null, 2), "utf8");
+}
+
+async function readWebAppsConfig() {
+  try {
+    const raw = await fs.readFile(webAppsConfigFile, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+async function readTodayNotes() {
+  try {
+    const raw = await fs.readFile(todayNotesFile, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+async function writeTodayNotes(notes) {
+  await fs.mkdir(dataDir, { recursive: true });
+  await fs.writeFile(todayNotesFile, JSON.stringify(notes, null, 2), "utf8");
+}
+
+app.on("ready", async () => {
+  try {
+    const defaultSession = session.defaultSession;
+    if (defaultSession && defaultSession.clearCache) {
+      await defaultSession.clearCache();
+      console.log("[CommandDesk] Cleared Electron HTTP cache on startup");
+    }
+  } catch (err) {
+    console.warn("[CommandDesk] Failed to clear cache", err);
+  }
+  createMainWindow();
+});
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+  }
+});
+
+ipcMain.handle("memory:load", async () => loadMemory());
+
+ipcMain.handle("memory:save", async (_event, updates) => saveMemory(updates));
+
+ipcMain.handle("tab:detach", async (_event, moduleName) => {
+  if (!moduleName) {
+    throw new Error("Module name is required to detach a tab.");
+  }
+
+  const detachedWindow = new BrowserWindow({
+    width: 900,
+    height: 650,
+    parent: mainWindow ?? undefined,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      webviewTag: true
+    }
+  });
+
+  await detachedWindow.loadFile(path.join(__dirname, "detached.html"), {
+    query: { tab: moduleName }
+  });
+
+  return { success: true };
+});
+
+ipcMain.handle("transcript:export", async (_event, chatId = "default") => {
+  try {
+    const chats = await readMergedChats();
+    await fs.mkdir(chatsDir, { recursive: true });
+
+    const filename = `transcript_${chatId}_${Date.now()}.json`;
+    const exportPath = path.join(chatsDir, filename);
+
+    await fs.writeFile(exportPath, JSON.stringify(chats, null, 2), "utf8");
+
+    return { file: exportPath };
+  } catch (err) {
+    console.error("Error exporting transcript:", err);
+    throw new Error("Unable to export transcript. Check logs for details.");
+  }
+});
+
+ipcMain.handle("history:load", async () => {
+  try {
+    return await readMergedChats();
+  } catch (err) {
+    console.error("Error loading chat history:", err);
+    throw new Error("Unable to load chat history.");
+  }
+});
+
+ipcMain.handle("history:delete", async (_event, payload) => {
+  const id = payload?.id;
+  if (!id) {
+    throw new Error("Missing conversation id.");
+  }
+  try {
+    const chats = await readMergedChats();
+    const filtered = chats.filter(c => c.id !== id);
+    await writeMergedChats(filtered);
+    return { ok: true };
+  } catch (err) {
+    console.error("Error deleting chat history entry:", err);
+    throw new Error("Unable to delete conversation from history.");
+  }
+});
+
+ipcMain.handle("config:getOpenAIKey", async () => {
+  try {
+    return await getOpenAIKey();
+  } catch (err) {
+    console.error("Error retrieving OpenAI API key:", err);
+    throw new Error("Unable to read stored OpenAI key.");
+  }
+});
+
+ipcMain.handle("config:setOpenAIKey", async (_event, key) => {
+  try {
+    const storedKey = await setOpenAIKey(key);
+    return { stored: Boolean(storedKey) };
+  } catch (err) {
+    console.error("Error saving OpenAI API key:", err);
+    throw new Error("Unable to store OpenAI key.");
+  }
+});
+
+ipcMain.handle("chat:send", async (_event, payload) => {
+  const text = typeof payload === "string" ? payload.trim() : (payload?.text || "");
+  const conversationId = typeof payload === "object" ? payload.conversationId || null : null;
+  const agentId = typeof payload === "object" ? payload.agentId || "main" : "main";
+
+  if (!text) {
+    return { error: "Message is empty." };
+  }
+
+  try {
+    const { reply } = await sendChatThroughGateway({ text, conversationId, agentId });
+
+    // Persist transcript locally so CommandDesk chat history survives restarts
+    try {
+      const chats = await readMergedChats();
+      const id = conversationId || `conv-${Date.now()}`;
+      let conv = chats.find(c => c.id === id);
+      if (!conv) {
+        conv = {
+          id,
+          title: payload?.title || "New chat",
+          created_at: new Date().toISOString(),
+          messages: []
+        };
+        chats.push(conv);
+      }
+      conv.messages = conv.messages || [];
+      conv.messages.push({ role: "user", content: text });
+      conv.messages.push({ role: "assistant", content: reply || "" });
+      await writeMergedChats(chats);
+    } catch (persistErr) {
+      console.error("Error persisting chat transcript", persistErr);
+    }
+
+    return { reply };
+  } catch (err) {
+    console.error("Error handling chat:send via gateway", err);
+    return { error: err.message || "Unexpected error from gateway." };
+  }
+});
+
+ipcMain.handle("project:promoteConversation", async (_event, payload) => {
+  const conversation = payload?.conversation;
+  if (!conversation) {
+    throw new Error("Missing conversation payload.");
+  }
+
+  const notesPath = path.join(
+    process.env.HOME || process.env.USERPROFILE || "",
+    ".openclaw",
+    "workspace",
+    "projects",
+    "legal_custody",
+    "NOTES.md"
+  );
+
+  const title = conversation.title || "Chat session";
+  const created = conversation.created_at || new Date().toISOString();
+  const id = conversation.id || conversation.conversationId || "(no-id)";
+
+  const lines = [];
+  lines.push("\n\n---");
+  lines.push(`\n## Promoted conversation – ${title}`);
+  lines.push(`- Promoted at: ${new Date().toISOString()}`);
+  lines.push(`- Conversation id: ${id}`);
+  lines.push(`- Started: ${created}`);
+
+  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+  const slice = messages.slice(-10); // last 10 messages for context
+  if (slice.length) {
+    lines.push("\n### Recent context");
+    slice.forEach(msg => {
+      if (!msg || !msg.role || !msg.content) return;
+      const role = msg.role === "assistant" ? "Assistant" : msg.role === "user" ? "Matt" : msg.role;
+      lines.push(`- **${role}:** ${msg.content.replace(/\r?\n/g, " ")}`);
+    });
+  }
+
+  const block = lines.join("\n");
+
+  try {
+    await fs.appendFile(notesPath, block, "utf8");
+    return { ok: true };
+  } catch (err) {
+    console.error("Error promoting conversation", err);
+    throw new Error("Unable to write to NOTES.md for legal_custody.");
+  }
+});
+
+// News feed: crypto + macro headlines via CryptoCompare (no key required)
+ipcMain.handle("news:topStories", async () => {
+  try {
+    const response = await fetch("https://min-api.cryptocompare.com/data/v2/news/?lang=EN");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const items = Array.isArray(data.Data) ? data.Data : [];
+
+    const stories = items.slice(0, 12).map(item => ({
+      id: item.id,
+      source: item.source_info?.name || "News",
+      title: item.title || "Untitled",
+      body: item.body || "",
+      url: item.url || null,
+      published: item.published_on ? new Date(item.published_on * 1000).toISOString() : null,
+      tags: item.categories ? String(item.categories).split("|").filter(Boolean) : []
+    }));
+
+    return { stories };
+  } catch (err) {
+    console.error("Error fetching news top stories", err);
+    return { stories: [], error: err.message || String(err) };
+  }
+});
+
+// Dashboard / integrations
+ipcMain.handle("google:gmailPrimarySnapshot", async () => {
+  // TODO: replace with real Gmail API integration, filtered to PRIMARY only.
+  // Temporary stub data so the dashboard shows something useful.
+  return {
+    unread: 0,
+    messages: []
+  };
+});
+
+ipcMain.handle("google:calendarSnapshot", async () => {
+  try {
+    const events = await listNextEvents();
+    const today = [];
+    let upcoming = null;
+
+    if (Array.isArray(events) && events.length) {
+      // For now, treat all as "upcoming" and show the first as next.
+      upcoming = {
+        when: events[0].time || "",
+        title: events[0].title || "(untitled event)"
+      };
+    }
+
+    return { today, upcoming };
+  } catch (err) {
+    console.error("Error in calendarSnapshot", err);
+    throw new Error("Unable to load calendar snapshot.");
+  }
+});
+
+ipcMain.handle("config:listWebApps", async () => {
+  try {
+    return await readWebAppsConfig();
+  } catch (err) {
+    console.error("Error reading webapps config", err);
+    throw new Error("Unable to load web apps configuration.");
+  }
+});
+
+ipcMain.handle("todayNotes:list", async () => {
+  try {
+    return await readTodayNotes();
+  } catch (err) {
+    console.error("Error reading today notes", err);
+    throw new Error("Unable to load saved notes.");
+  }
+});
+
+ipcMain.handle("todayNotes:save", async (_event, note) => {
+  const title = (note && note.title ? String(note.title) : "").trim();
+  const body = (note && note.body ? String(note.body) : "").trim();
+
+  if (!title && !body) {
+    throw new Error("Note is empty.");
+  }
+
+  try {
+    const existing = await readTodayNotes();
+    const id = note && note.id ? String(note.id) : String(Date.now());
+    const stamped = {
+      id,
+      title: title || "Untitled",
+      body,
+      createdAt: note && note.createdAt ? note.createdAt : new Date().toISOString()
+    };
+
+    const remaining = existing.filter(n => n.id !== id);
+    const next = [stamped, ...remaining].slice(0, 50); // keep last 50
+
+    await writeTodayNotes(next);
+    return { ok: true, notes: next };
+  } catch (err) {
+    console.error("Error saving today note", err);
+    throw new Error("Unable to save note.");
+  }
+});
+
+// Placeholder hooks for future UI-based add/remove/reorder
+ipcMain.handle("config:addWebApp", async (_event, app) => {
+  const apps = await readWebAppsConfig();
+  apps.push(app);
+  await fs.writeFile(path.join(__dirname, "data", "webapps.json"), JSON.stringify(apps, null, 2), "utf8");
+  return apps;
+});
+
+ipcMain.handle("config:removeWebApp", async (_event, id) => {
+  const apps = await readWebAppsConfig();
+  const next = apps.filter(a => a.id !== id);
+  await fs.writeFile(path.join(__dirname, "data", "webapps.json"), JSON.stringify(next, null, 2), "utf8");
+  return next;
+});
+
+ipcMain.handle("config:reorderWebApps", async (_event, ids) => {
+  const apps = await readWebAppsConfig();
+  const map = new Map(apps.map(a => [a.id, a]));
+  const reordered = ids.map(id => map.get(id)).filter(Boolean);
+  await fs.writeFile(path.join(__dirname, "data", "webapps.json"), JSON.stringify(reordered, null, 2), "utf8");
+  return reordered;
+});
+
+ipcMain.handle("webapp:launch", async (_event, { id, urlOverride }) => {
+  if (!id) {
+    throw new Error("Webapp id is required.");
+  }
+
+  const apps = await readWebAppsConfig();
+  const appEntry = apps.find(app => app.id === id);
+
+  if (!appEntry) {
+    throw new Error(`Webapp not found: ${id}`);
+  }
+
+  const effectiveUrl = urlOverride || appEntry.url;
+
+  const { binary, profile, flatpakId } = await getChromiumConfig();
+
+  const args = [];
+
+  // If running Chromium as a Flatpak, construct: flatpak run <id> [flags]
+  if (flatpakId) {
+    args.push("run", flatpakId);
+
+    const effectiveProfile = appEntry.profile || profile;
+    if (effectiveProfile) {
+      args.push(`--profile=${effectiveProfile}`);
+    }
+
+    if (urlOverride) {
+      args.push(urlOverride);
+    } else if (appEntry.appId) {
+      // Use Chromium app-id, matching how your KDE launchers work
+      args.push(`--app-id=${appEntry.appId}`);
+    } else if (appEntry.mode === "app" && appEntry.url) {
+      args.push(`--app=${appEntry.url}`);
+    } else if (appEntry.url) {
+      args.push(appEntry.url);
+    }
+  } else {
+    // Traditional binary mode (non-Flatpak Chromium/Chrome)
+    const effectiveProfile = appEntry.profile || profile;
+    if (effectiveProfile) {
+      args.push(`--profile-directory=${effectiveProfile}`);
+    }
+
+    if (!urlOverride && appEntry.mode === "app" && effectiveUrl) {
+      args.push(`--app=${effectiveUrl}`);
+    } else if (!urlOverride && effectiveUrl) {
+      args.push(effectiveUrl);
+    } else if (urlOverride) {
+      args.push(urlOverride);
+    }
+  }
+
+  const child = spawn(binary, args, {
+    detached: true,
+    stdio: "ignore"
+  });
+
+  child.unref();
+
+  return { launched: true, binary, args };
+});

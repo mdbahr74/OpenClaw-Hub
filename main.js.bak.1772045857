@@ -1,0 +1,235 @@
+import { app, BrowserWindow, ipcMain } from "electron";
+import { promises as fs } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { spawn } from "child_process";
+import { loadMemory, saveMemory } from "./memory/memory.js";
+import { getOpenAIKey, setOpenAIKey, getChromiumConfig } from "./config/settings.js";
+import { listNextEvents } from "./googleAPI.js";
+import { sendChatThroughGateway } from "./gatewayClient.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const chatsDir = path.join(__dirname, "chats");
+const mergedChatsFile = path.join(chatsDir, "merged_chats.json");
+const dataDir = path.join(__dirname, "data");
+const webAppsConfigFile = path.join(dataDir, "webapps.json");
+
+let mainWindow;
+
+function createMainWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1100,
+    height: 750,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      webviewTag: true
+    }
+  });
+
+  mainWindow.loadFile(path.join(__dirname, "app.html"));
+}
+
+async function readMergedChats() {
+  try {
+    const raw = await fs.readFile(mergedChatsFile, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+async function readWebAppsConfig() {
+  try {
+    const raw = await fs.readFile(webAppsConfigFile, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+}
+
+app.on("ready", createMainWindow);
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+  }
+});
+
+ipcMain.handle("memory:load", async () => loadMemory());
+
+ipcMain.handle("memory:save", async (_event, updates) => saveMemory(updates));
+
+ipcMain.handle("tab:detach", async (_event, moduleName) => {
+  if (!moduleName) {
+    throw new Error("Module name is required to detach a tab.");
+  }
+
+  const detachedWindow = new BrowserWindow({
+    width: 900,
+    height: 650,
+    parent: mainWindow ?? undefined,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      webviewTag: true
+    }
+  });
+
+  await detachedWindow.loadFile(path.join(__dirname, "detached.html"), {
+    query: { tab: moduleName }
+  });
+
+  return { success: true };
+});
+
+ipcMain.handle("transcript:export", async (_event, chatId = "default") => {
+  try {
+    const chats = await readMergedChats();
+    await fs.mkdir(chatsDir, { recursive: true });
+
+    const filename = `transcript_${chatId}_${Date.now()}.json`;
+    const exportPath = path.join(chatsDir, filename);
+
+    await fs.writeFile(exportPath, JSON.stringify(chats, null, 2), "utf8");
+
+    return { file: exportPath };
+  } catch (err) {
+    console.error("Error exporting transcript:", err);
+    throw new Error("Unable to export transcript. Check logs for details.");
+  }
+});
+
+ipcMain.handle("history:load", async () => {
+  try {
+    return await readMergedChats();
+  } catch (err) {
+    console.error("Error loading chat history:", err);
+    throw new Error("Unable to load chat history.");
+  }
+});
+
+ipcMain.handle("config:getOpenAIKey", async () => {
+  try {
+    return await getOpenAIKey();
+  } catch (err) {
+    console.error("Error retrieving OpenAI API key:", err);
+    throw new Error("Unable to read stored OpenAI key.");
+  }
+});
+
+ipcMain.handle("config:setOpenAIKey", async (_event, key) => {
+  try {
+    const storedKey = await setOpenAIKey(key);
+    return { stored: Boolean(storedKey) };
+  } catch (err) {
+    console.error("Error saving OpenAI API key:", err);
+    throw new Error("Unable to store OpenAI key.");
+  }
+});
+
+ipcMain.handle("chat:send", async (_event, payload) => {
+  const text = typeof payload === "string" ? payload.trim() : (payload?.text || "");
+  const conversationId = typeof payload === "object" ? payload.conversationId || null : null;
+
+  if (!text) {
+    return { error: "Message is empty." };
+  }
+
+  try {
+    const { reply } = await sendChatThroughGateway({ text, conversationId });
+    return { reply };
+  } catch (err) {
+    console.error("Error handling chat:send via gateway", err);
+    return { error: err.message || "Unexpected error from gateway." };
+  }
+});
+
+// Dashboard / integrations
+ipcMain.handle("google:gmailPrimarySnapshot", async () => {
+  // TODO: replace with real Gmail API integration, filtered to PRIMARY only.
+  // Temporary stub data so the dashboard shows something useful.
+  return {
+    unread: 0,
+    messages: []
+  };
+});
+
+ipcMain.handle("google:calendarSnapshot", async () => {
+  try {
+    const events = await listNextEvents();
+    const today = [];
+    let upcoming = null;
+
+    if (Array.isArray(events) && events.length) {
+      // For now, treat all as "upcoming" and show the first as next.
+      upcoming = {
+        when: events[0].time || "",
+        title: events[0].title || "(untitled event)"
+      };
+    }
+
+    return { today, upcoming };
+  } catch (err) {
+    console.error("Error in calendarSnapshot", err);
+    throw new Error("Unable to load calendar snapshot.");
+  }
+});
+
+ipcMain.handle("config:listWebApps", async () => {
+  try {
+    return await readWebAppsConfig();
+  } catch (err) {
+    console.error("Error reading webapps config", err);
+    throw new Error("Unable to load web apps configuration.");
+  }
+});
+
+ipcMain.handle("webapp:launch", async (_event, { id }) => {
+  if (!id) {
+    throw new Error("Webapp id is required.");
+  }
+
+  const apps = await readWebAppsConfig();
+  const appEntry = apps.find(app => app.id === id);
+
+  if (!appEntry || !appEntry.url) {
+    throw new Error(`Webapp not found: ${id}`);
+  }
+
+  // Launch via Chromium instead of default browser
+  const { binary, profile } = await getChromiumConfig();
+  const args = [];
+
+  if (profile) {
+    args.push(`--profile-directory=${profile}`);
+  }
+
+  if (appEntry.mode === "app") {
+    args.push(`--app=${appEntry.url}`);
+  } else {
+    args.push(appEntry.url);
+  }
+
+  const child = spawn(binary, args, {
+    detached: true,
+    stdio: "ignore"
+  });
+
+  child.unref();
+
+  return { launched: true, binary, args };
+});

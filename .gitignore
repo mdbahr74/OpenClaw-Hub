@@ -1,0 +1,32 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+dist/
+build/
+
+# IDE files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sensitive Hub Files
+credentials.json
+google_oauth.json
+conversations-*.json
+conversations.json.old
+chats/
+memory/
+config/apikey.json
+config/settings.json

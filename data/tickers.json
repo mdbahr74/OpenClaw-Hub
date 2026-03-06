@@ -1,0 +1,22 @@
+[
+  {
+    "symbol": "BTCUSD",
+    "kind": "crypto",
+    "exchange": "COINBASE"
+  },
+  {
+    "symbol": "ETHUSD",
+    "kind": "crypto",
+    "exchange": "COINBASE"
+  },
+  {
+    "symbol": "QQQ",
+    "kind": "stock",
+    "exchange": "NASDAQ"
+  },
+  {
+    "symbol": "GLD",
+    "kind": "stock",
+    "exchange": "YAHOO"
+  }
+]

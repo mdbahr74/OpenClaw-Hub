@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OpenClaw Hub
+Comment=Launch OpenClaw Hub
+Path=/mnt/AI/OpenClaw_Hub_V2.1
+Exec=/mnt/AI/OpenClaw_Hub_V2.1/openclaw-hub
+Terminal=false
+Categories=Development;
+StartupNotify=true

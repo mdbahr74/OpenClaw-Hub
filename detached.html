@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Detached</title>
+  <style>
+    body { margin:0; background:#1e1e1e; color:#eee; font-family:sans-serif; }
+    #header { background:#111; padding:10px; font-weight:bold; }
+    iframe { width:100%; height:90vh; border:none; }
+  </style>
+</head>
+<body>
+  <div id="header">Detached Tab</div>
+  <div id="content"></div>
+
+  <script>
+    const CHANNEL = "commanddesk:bridge";
+    let bridgeRegistered = false;
+
+    function registerBridge() {
+      if (bridgeRegistered) {
+        return;
+      }
+
+      if (!window.electronAPI) {
+        setTimeout(registerBridge, 300);
+        return;
+      }
+
+      const electronBridge = {
+        invoke(channel, data) {
+          if (window.api && typeof window.api.invoke === "function") {
+            return window.api.invoke(channel, data);
+          }
+          return Promise.reject(new Error("IPC invoke unavailable"));
+        },
+        commandDeskInvoke(channel, data) {
+          return electronBridge.invoke(channel, data);
+        },
+        exportTranscript(chatId) {
+          return window.electronAPI.exportTranscript(chatId);
+        },
+        loadChats() {
+          return window.electronAPI.loadChats();
+        },
+        getOpenAIKey() {
+          return window.electronAPI.getOpenAIKey();
+        },
+        setOpenAIKey(value) {
+          return window.electronAPI.setOpenAIKey(value);
+        }
+      };
+
+      window.commandDeskBridge = electronBridge;
+
+      const handlers = {
+        "transcript:export": electronBridge.exportTranscript,
+        "history:load": electronBridge.loadChats,
+        "config:getOpenAIKey": electronBridge.getOpenAIKey,
+        "config:setOpenAIKey": electronBridge.setOpenAIKey
+      };
+
+      window.addEventListener("message", async event => {
+        const data = event.data;
+        if (
+          !data ||
+          data.channel !== CHANNEL ||
+          !data.requestId ||
+          !data.method
+        ) {
+          return;
+        }
+
+        const respond = payload => {
+          try {
+            event.source?.postMessage(
+              {
+                channel: CHANNEL,
+                requestId: data.requestId,
+                ...payload
+              },
+              event.origin || "*"
+            );
+          } catch (err) {
+            console.warn("Detached window could not respond:", err);
+          }
+        };
+
+        const handler = handlers[data.method];
+        if (!handler) {
+          respond({ success: false, error: `Unknown method: ${data.method}` });
+          return;
+        }
+
+        try {
+          const result = await handler(data.payload);
+          respond({ success: true, result });
+        } catch (err) {
+          respond({
+            success: false,
+            error: err?.message ?? "Unexpected error"
+          });
+        }
+      });
+
+      bridgeRegistered = true;
+    }
+
+    function loadTabContent() {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+
+      if (tab) {
+        const tabMap = {
+          home: "home",
+          history: "history",
+          api: "api"
+        };
+
+        const moduleFolder = tabMap[tab] || tab;
+        document.getElementById("header").textContent = "Detached: " + tab;
+        document.getElementById("content").innerHTML = `
+          <iframe src="./modules/${moduleFolder}/index.html"></iframe>
+        `;
+      }
+    }
+
+    function wireInnerFrame() {
+      const container = document.getElementById("content");
+      const frame = container.querySelector("iframe");
+      if (!frame) {
+        setTimeout(wireInnerFrame, 300);
+        return;
+      }
+
+      const assignBridge = () => {
+        registerBridge();
+        const bridge = window.commandDeskBridge;
+        if (!bridge) {
+          setTimeout(assignBridge, 400);
+          return;
+        }
+
+        try {
+          if (frame.contentWindow) {
+            frame.contentWindow.commandDeskBridge = bridge;
+            if (typeof window.commandDeskInvoke === "function") {
+              frame.contentWindow.commandDeskInvoke = window.commandDeskInvoke;
+            } else if (window.api && typeof window.api.invoke === "function") {
+              frame.contentWindow.commandDeskInvoke = (channel, data) => window.api.invoke(channel, data);
+            }
+          }
+        } catch (err) {
+          console.warn("Detached window could not share bridge:", err);
+        }
+      };
+
+      frame.addEventListener("load", assignBridge);
+      assignBridge();
+    }
+
+    registerBridge();
+    loadTabContent();
+    wireInnerFrame();
+  </script>
+</body>
+</html>
+

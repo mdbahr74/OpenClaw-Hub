@@ -1,0 +1,321 @@
+// ~/dev/CommandDesk_1/gatewayClient.js
+import { promises as fs } from "fs";
+import path from "path";
+import { WebSocket } from "ws";
+
+const OPENCLAW_CONFIG = path.join(
+  process.env.HOME || process.env.USERPROFILE || "",
+  ".openclaw",
+  "openclaw.json"
+);
+
+// Default observed session key from your OpenClaw UI.
+// We will not assume it's correct forever, but it gives us a starting point.
+const DEFAULT_SESSION = "agent:main:main";
+
+let ws = null;
+let connecting = null;
+let activeAuthMode = null; // "header" | "firstFrame"
+
+// Simple in-flight request tracking (single request at a time for now)
+let inflight = null; // { resolve, reject, buffer, timeoutId }
+
+function log(...args) {
+  console.log("[gatewayClient]", ...args);
+}
+
+async function loadGatewayConfig() {
+  const raw = await fs.readFile(OPENCLAW_CONFIG, "utf8");
+  const json = JSON.parse(raw);
+  const gateway = json.gateway || {};
+  const port = gateway.port || 18789;
+  const token = gateway.auth?.token;
+
+  if (!token) {
+    throw new Error("No gateway token found in ~/.openclaw/openclaw.json");
+  }
+
+  return { url: `ws://127.0.0.1:${port}`, token };
+}
+
+/**
+ * Attempt a WS connection using one auth strategy.
+ * strategy:
+ *  - "header": Authorization: Bearer <token>, no first-frame auth
+ *  - "firstFrame": no headers, sends {type:"auth", token} on open
+ *
+ * We consider the connection "good" if it stays open briefly and does not error/close immediately.
+ */
+async function connectWithStrategy(strategy) {
+  const { url, token } = await loadGatewayConfig();
+
+  return await new Promise((resolve, reject) => {
+    let socket;
+
+    const onFail = (err) => {
+      cleanup();
+      reject(err instanceof Error ? err : new Error(String(err)));
+    };
+
+    const cleanup = () => {
+      if (!socket) return;
+      socket.removeAllListeners("open");
+      socket.removeAllListeners("message");
+      socket.removeAllListeners("error");
+      socket.removeAllListeners("close");
+    };
+
+    try {
+      if (strategy === "header") {
+        socket = new WebSocket(url, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+      } else {
+        socket = new WebSocket(url);
+      }
+    } catch (e) {
+      return onFail(e);
+    }
+
+    // If it closes immediately, we consider it a failure for that strategy.
+    let opened = false;
+    const earlyCloseTimer = setTimeout(() => {
+      // If we got here and it's still open, count as success.
+      cleanup();
+      resolve({ socket, strategy });
+    }, 350);
+
+    socket.on("open", () => {
+      opened = true;
+      log(`WS open (strategy=${strategy})`);
+      if (strategy === "firstFrame") {
+        try {
+          socket.send(JSON.stringify({ type: "auth", token }));
+          log("sent first-frame auth");
+        } catch (e) {
+          clearTimeout(earlyCloseTimer);
+          onFail(e);
+        }
+      }
+    });
+
+    socket.on("message", (data) => {
+      // raw frames are helpful even during handshake
+      log("[RAW IN]", data.toString());
+    });
+
+    socket.on("error", (err) => {
+      clearTimeout(earlyCloseTimer);
+      onFail(err);
+    });
+
+    socket.on("close", (code, reason) => {
+      clearTimeout(earlyCloseTimer);
+      const why = reason ? reason.toString() : "";
+      const msg = `WS closed during handshake (strategy=${strategy}) code=${code} reason=${why}`;
+      onFail(new Error(msg));
+    });
+  });
+}
+
+/**
+ * Ensure we have a live WS connection.
+ * We auto-try auth strategies:
+ *  1) header
+ *  2) firstFrame
+ */
+async function ensureConnection() {
+  if (ws && ws.readyState === WebSocket.OPEN) return ws;
+  if (connecting) return connecting;
+
+  connecting = (async () => {
+    // Try prior successful auth mode first if known
+    const strategies = activeAuthMode
+    ? [activeAuthMode, activeAuthMode === "header" ? "firstFrame" : "header"]
+    : ["header", "firstFrame"];
+
+    let lastErr = null;
+
+    for (const s of strategies) {
+      try {
+        const { socket, strategy } = await connectWithStrategy(s);
+
+        // promote to active
+        ws = socket;
+        activeAuthMode = strategy;
+
+        // Replace handshake listeners with runtime listeners
+        ws.removeAllListeners("message");
+        ws.removeAllListeners("close");
+        ws.removeAllListeners("error");
+
+        ws.on("message", handleMessage);
+        ws.on("close", (code, reason) => handleClose(code, reason));
+        ws.on("error", (err) => handleError(err));
+
+        log(`Connected OK using strategy=${strategy}`);
+        return ws;
+      } catch (e) {
+        lastErr = e;
+        log(`Strategy failed: ${s} -> ${e.message}`);
+      }
+    }
+
+    throw lastErr || new Error("Unable to connect to OpenClaw gateway");
+  })();
+
+  try {
+    return await connecting;
+  } finally {
+    connecting = null;
+  }
+}
+
+function handleClose(code, reason) {
+  const why = reason ? reason.toString() : "";
+  log(`WS closed code=${code} reason=${why}`);
+  // Fail any inflight request
+  if (inflight) {
+    clearTimeout(inflight.timeoutId);
+    inflight.reject(new Error("Gateway connection closed"));
+    inflight = null;
+  }
+  ws = null;
+}
+
+function handleError(err) {
+  log("WS error:", err?.message || err);
+  // Fail inflight
+  if (inflight) {
+    clearTimeout(inflight.timeoutId);
+    inflight.reject(err instanceof Error ? err : new Error(String(err)));
+    inflight = null;
+  }
+}
+
+function safeJsonParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Runtime message handler: supports both JSON event frames and raw text.
+ * We only resolve inflight when we see:
+ *  - {type:"done"} OR {done:true} OR {type:"complete"}
+ *  - or a full assistant message frame
+ */
+function handleMessage(data) {
+  const raw = data.toString();
+  log("[RAW IN]", raw);
+
+  const msg = safeJsonParse(raw);
+  if (!msg) {
+    // If gateway sends plain text (unlikely), treat it as delta content
+    if (inflight) inflight.buffer += raw;
+    return;
+  }
+
+  // Handle error frames
+  if (msg.type === "error" || msg.error) {
+    const emsg = msg.message || msg.error?.message || "Gateway error";
+    if (inflight) {
+      clearTimeout(inflight.timeoutId);
+      inflight.reject(new Error(emsg));
+      inflight = null;
+    }
+    return;
+  }
+
+  // Handle delta frames
+  if (msg.type === "delta" && typeof msg.content === "string") {
+    if (inflight) inflight.buffer += msg.content;
+    return;
+  }
+
+  // Handle full message frames (assistant)
+  if (msg.type === "message") {
+    const role = msg.role || msg.message?.role;
+    const content = msg.content ?? msg.message?.content;
+    if (role === "assistant" && typeof content === "string") {
+      if (inflight) inflight.buffer = content; // prefer full content
+      return;
+    }
+  }
+
+  // Completion signals
+  if (msg.type === "done" || msg.type === "complete" || msg.done === true) {
+    if (inflight) {
+      clearTimeout(inflight.timeoutId);
+      const reply = inflight.buffer;
+      inflight.resolve({ reply });
+      inflight = null;
+    }
+    return;
+  }
+
+  // Session updates (if gateway returns session info)
+  if (typeof msg.session === "string" && msg.session.length > 0) {
+    // We don't overwrite DEFAULT_SESSION unless it looks like a real session id
+    // but we keep it around for future sends if provided.
+    // (We don't store globally yet; sendChat accepts session override.)
+  }
+}
+
+/**
+ * Send one chat turn through the gateway.
+ * NOTE: The outbound envelope is still our "neutral" contract.
+ * If gateway rejects it, the RAW IN frames will tell us what it expects.
+ */
+export async function sendChatThroughGateway({ text, conversationId = null, session = DEFAULT_SESSION }) {
+  if (typeof text !== "string" || !text.trim()) {
+    throw new Error("Message is empty.");
+  }
+
+  const socket = await ensureConnection();
+
+  if (inflight) {
+    throw new Error("Another request is in-flight. Try again after it completes.");
+  }
+
+  // Create inflight promise
+  const replyPromise = new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      inflight = null;
+      reject(new Error("Gateway timeout waiting for response"));
+    }, 45000);
+
+    inflight = { resolve, reject, buffer: "", timeoutId };
+  });
+
+  // Send payload
+  const payload = {
+    type: "chat",
+    agent: "main",
+    session,
+    input: { role: "user", content: text.trim() },
+    meta: {
+      source: "commanddesk",
+      conversationId
+    }
+  };
+
+  log("[SEND]", JSON.stringify(payload));
+
+  try {
+    socket.send(JSON.stringify(payload));
+  } catch (e) {
+    if (inflight) {
+      clearTimeout(inflight.timeoutId);
+      inflight.reject(e);
+      inflight = null;
+    }
+    throw e;
+  }
+
+  return await replyPromise;
+}

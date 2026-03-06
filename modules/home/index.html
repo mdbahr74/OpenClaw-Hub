@@ -1,0 +1,2322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>OpenClaw Hub Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --space-1: 8px;
+      --space-2: 12px;
+      --space-3: 16px;
+      --space-4: 24px;
+      --radius: 12px;
+      --radius-sm: 8px;
+
+      --bg: #0b0b0f;
+      --bg-gradient:
+        radial-gradient(circle at 12% 0%, rgba(66, 0, 0, 0.24) 0%, transparent 36%),
+        radial-gradient(circle at 88% 100%, rgba(11, 11, 15, 0.9) 0%, transparent 34%),
+        #0b0b0f;
+      --panel: rgba(16, 16, 22, 0.94);
+      --panel-strong: rgba(11, 11, 15, 0.97);
+      --panel-muted: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --border-accent: rgba(66, 0, 0, 0.55);
+      --divider: rgba(255, 255, 255, 0.08);
+      --accent: #420000;
+      --accent-soft: rgba(66, 0, 0, 0.2);
+      --accent-bright: #d8a6a6;
+      --text: #e7e5e4;
+      --text-strong: #faf7f5;
+      --text-soft: #a8a29e;
+      --text-muted: #78716c;
+      --green: #34d399;
+      --green-soft: rgba(52, 211, 153, 0.16);
+      --yellow: #fbbf24;
+      --yellow-soft: rgba(251, 191, 36, 0.15);
+      --red: #c98b8b;
+      --red-soft: rgba(201, 139, 139, 0.16);
+
+      --font-ui: "Space Grotesk", "Segoe UI", "Helvetica Neue", sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+
+      --density-pad: 12px;
+      --density-gap: 12px;
+      --density-row: 34px;
+      --density-font: 13px;
+
+      --left-rail: 320px;
+      --right-rail: 390px;
+      --top-height: auto;
+      --bottom-height: auto;
+    }
+
+    body[data-density="compact"] {
+      --density-pad: 9px;
+      --density-gap: 8px;
+      --density-row: 28px;
+      --density-font: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-gradient);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: var(--density-font);
+      line-height: 1.4;
+    }
+
+    body {
+      padding: var(--space-2);
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.45);
+      border-radius: 999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.7);
+    }
+
+    .home-shell {
+      height: 100%;
+      display: grid;
+      grid-template-rows: var(--top-height) minmax(0, 1fr) var(--bottom-height);
+      gap: var(--density-gap);
+      min-height: 0;
+    }
+
+    .top-bar {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(16, 16, 22, 0.97), rgba(11, 11, 15, 0.92));
+      padding: var(--density-pad);
+      display: grid;
+      grid-template-columns: minmax(220px, max-content) minmax(0, 1fr) minmax(260px, max-content);
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #420000, #5a0909);
+      box-shadow: 0 10px 22px rgba(66, 0, 0, 0.34);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .brand h1 {
+      font-size: 16px;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--text-strong);
+      white-space: nowrap;
+    }
+
+    .brand p {
+      color: var(--text-soft);
+      font-size: 11px;
+      margin-top: -2px;
+      white-space: nowrap;
+    }
+
+    .top-status {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--accent-soft);
+      color: var(--accent-bright);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .status-pill.live {
+      color: var(--green);
+      background: var(--green-soft);
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+
+    .status-pill.offline {
+      color: var(--red);
+      background: var(--red-soft);
+      border-color: rgba(251, 113, 133, 0.35);
+    }
+
+    .status-pill.warn {
+      color: var(--yellow);
+      background: var(--yellow-soft);
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+
+    .sys-inline {
+      color: var(--text-soft);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      letter-spacing: 0.03em;
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--space-1);
+    }
+
+    .top-toggle {
+      height: 30px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--text-soft);
+      border-radius: var(--radius-sm);
+      padding: 0 10px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      transition: 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .top-toggle:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+
+    .top-toggle[aria-pressed="true"] {
+      border-color: rgba(239, 68, 68, 0.45);
+      background: var(--accent-soft);
+      color: var(--text-strong);
+    }
+
+    .clock {
+      text-align: right;
+      min-width: 0;
+    }
+
+    .clock-date {
+      color: var(--accent-bright);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .clock-zones {
+      margin-top: 2px;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .top-ticker-wrap {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .dashboard-grid {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: var(--left-rail) minmax(0, 1fr) var(--right-rail);
+      gap: var(--density-gap);
+    }
+
+    .left-rail,
+    .main-canvas,
+    .right-rail {
+      min-height: 0;
+      min-width: 0;
+      display: grid;
+      gap: var(--density-gap);
+    }
+
+    .left-rail {
+      grid-template-rows: auto minmax(350px, 1fr);
+    }
+
+    .main-canvas {
+      grid-template-rows: minmax(320px, 1.3fr) minmax(220px, 1fr);
+    }
+
+    .right-rail {
+      align-content: stretch;
+      grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .notifs-card {
+      min-height: 0;
+    }
+
+    .main-support {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--density-gap);
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel:hover {
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .panel-head {
+      min-height: 38px;
+      border-bottom: 1px solid var(--divider);
+      padding: 0 var(--density-pad);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+
+    .panel-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+      white-space: nowrap;
+    }
+
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      padding: var(--density-pad);
+      overflow: auto;
+    }
+
+    .head-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+
+    .subtle-btn,
+    .manage-toggle,
+    .btn-sm,
+    .btn {
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-soft);
+      font-size: 11px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      transition: 0.15s ease;
+    }
+
+    .subtle-btn:hover,
+    .manage-toggle:hover,
+    .btn-sm:hover,
+    .btn:hover {
+      border-color: var(--border-strong);
+      color: var(--text-strong);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .btn {
+      background: var(--accent-soft);
+      color: var(--accent-bright);
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-sm.danger:hover {
+      color: var(--red);
+      border-color: rgba(251, 113, 133, 0.36);
+      background: rgba(251, 113, 133, 0.12);
+    }
+
+    .manage-panel {
+      margin-top: var(--space-2);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--divider);
+      display: none;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .manage-panel.open {
+      display: flex;
+    }
+
+    .manage-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-1);
+    }
+
+    .manage-row-target {
+      grid-template-columns: 150px 1fr;
+    }
+
+    .manage-row-icon,
+    .manage-row-installed {
+      grid-template-columns: 1fr auto;
+    }
+
+    .manage-row-remove {
+      grid-template-columns: 1fr;
+    }
+
+    .manage-input,
+    .apps-filter,
+    .note-input,
+    .ticker-input,
+    .add-event-input,
+    .alarm-input {
+      width: 100%;
+      min-height: var(--density-row);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.26);
+      color: var(--text);
+      padding: 0 10px;
+      outline: none;
+      font-family: var(--font-ui);
+      font-size: 12px;
+    }
+
+    .manage-input:focus,
+    .apps-filter:focus,
+    .note-input:focus,
+    .ticker-input:focus,
+    .add-event-input:focus,
+    .alarm-input:focus,
+    .top-toggle:focus-visible,
+    .subtle-btn:focus-visible,
+    .manage-toggle:focus-visible,
+    .btn:focus-visible,
+    .btn-sm:focus-visible {
+      border-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+    }
+
+    .manage-input::placeholder,
+    .apps-filter::placeholder,
+    .note-input::placeholder,
+    .ticker-input::placeholder,
+    .add-event-input::placeholder,
+    .alarm-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    select.manage-input {
+      background: rgba(0, 0, 0, 0.45);
+    }
+
+    .manage-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: var(--space-1);
+      flex-wrap: wrap;
+    }
+
+    .manage-status,
+    .ticker-status {
+      color: var(--text-muted);
+      font-size: 10px;
+      min-height: 16px;
+    }
+
+    .manage-status.error,
+    .ticker-status.error,
+    .alarm-status.error {
+      color: var(--red);
+    }
+
+    .manage-full {
+      grid-column: 1 / -1;
+    }
+
+    .dashboard-grid .panel[tabindex="-1"]:focus-visible {
+      outline: 2px solid rgba(239, 68, 68, 0.45);
+      outline-offset: 2px;
+    }
+
+    .news-tabs {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .news-tab {
+      min-height: 26px;
+      padding: 0 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-soft);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border-right: 1px solid var(--divider);
+      font-family: var(--font-ui);
+    }
+
+    .news-tab:last-child {
+      border-right: none;
+    }
+
+    .news-tab.active,
+    .news-tab[aria-selected="true"] {
+      background: var(--accent-soft);
+      color: var(--text-strong);
+    }
+
+    .news-stack {
+      min-height: 0;
+      display: grid;
+    }
+
+    .news-pane {
+      display: none;
+      min-height: 0;
+    }
+
+    .news-pane.active {
+      display: block;
+    }
+
+    .news-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 0;
+    }
+
+    .news-item {
+      min-height: calc(var(--density-row) + 2px);
+      padding: 6px 8px;
+      border-radius: 9px;
+      border: 1px solid transparent;
+      background: var(--panel-muted);
+      display: grid;
+      grid-template-columns: minmax(56px, 70px) 1fr auto;
+      align-items: start;
+      gap: var(--space-1);
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+
+    .news-item:hover {
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .news-source {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      line-height: 1.2;
+    }
+
+    .news-title {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.25;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .news-tag {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: var(--accent-bright);
+      letter-spacing: 0.08em;
+      opacity: 0.8;
+      white-space: nowrap;
+    }
+
+    .weather-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .weather-temp {
+      font-size: 42px;
+      line-height: 1.1;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: linear-gradient(180deg, var(--text-strong), var(--text-soft));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: var(--text-strong);
+      /* fallback */
+    }
+
+    .weather-desc {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .weather-detail {
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.4;
+      border-top: 1px solid var(--divider);
+      padding-top: var(--space-1);
+    }
+
+    .weather-forecast {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin-top: var(--space-2);
+      border-top: 1px solid var(--divider);
+      padding-top: var(--space-2);
+    }
+
+    .weather-forecast-day {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 4px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .weather-forecast-day:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-strong);
+    }
+
+    .forecast-day-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-soft);
+      font-family: var(--font-mono);
+    }
+
+    .forecast-icon {
+      font-size: 16px;
+      line-height: 1;
+      margin: 2px 0;
+    }
+
+    .forecast-temps {
+      display: flex;
+      gap: 4px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    .forecast-high {
+      color: var(--text-strong);
+    }
+
+    .forecast-low {
+      color: var(--text-muted);
+    }
+
+    .impact-filters {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .impact-chip {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-soft);
+      border-radius: 999px;
+      min-height: 24px;
+      padding: 0 9px;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: var(--font-ui);
+    }
+
+    .impact-chip.active {
+      border-color: rgba(239, 68, 68, 0.45);
+      background: var(--accent-soft);
+      color: var(--text-strong);
+    }
+
+    .econ-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .econ-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: var(--space-1);
+      min-height: var(--density-row);
+      padding: 4px 8px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: var(--panel-muted);
+      transition: 0.15s ease;
+    }
+
+    .econ-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border);
+    }
+
+    .econ-item.clickable {
+      cursor: pointer;
+    }
+
+    .econ-item.clickable:focus-visible {
+      outline: 2px solid rgba(239, 68, 68, 0.45);
+      outline-offset: 2px;
+    }
+
+    .econ-when {
+      color: var(--accent-bright);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .econ-main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .econ-country {
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .econ-event-link {
+      font-size: 12px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-decoration: none;
+      border-bottom: 1px dashed transparent;
+      max-width: 100%;
+    }
+
+    .econ-event-link:hover {
+      color: var(--text-strong);
+      border-bottom-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .econ-event-link[aria-disabled="true"] {
+      color: var(--text-soft);
+      pointer-events: none;
+      border-bottom-color: transparent;
+    }
+
+    .econ-impact {
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      min-height: 20px;
+      padding: 0 8px;
+      color: var(--text-soft);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(148, 163, 184, 0.08);
+    }
+
+    .econ-impact.high {
+      color: var(--red);
+      border-color: rgba(251, 113, 133, 0.4);
+      background: var(--red-soft);
+    }
+
+    .econ-impact.medium {
+      color: var(--yellow);
+      border-color: rgba(251, 191, 36, 0.4);
+      background: var(--yellow-soft);
+    }
+
+    .rail-scroll {
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .rail-block {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.16);
+      overflow: hidden;
+    }
+
+    .rail-block summary {
+      list-style: none;
+      cursor: pointer;
+      min-height: 32px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-1);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-soft);
+      border-bottom: 1px solid var(--divider);
+    }
+
+    .rail-block summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .rail-block[open] summary {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .rail-content {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .notif-badge {
+      min-width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-bright);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      font-size: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 5px;
+      margin-left: auto;
+    }
+
+    .notif-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .notif-item {
+      min-height: var(--density-row);
+      border-radius: 8px;
+      padding: 6px 8px;
+      border-left: 2px solid transparent;
+      background: var(--panel-muted);
+      font-size: 11px;
+      color: var(--text);
+    }
+
+    .notif-item.email {
+      border-left-color: var(--accent);
+    }
+
+    .notif-item.event {
+      border-left-color: var(--yellow);
+    }
+
+    .notif-from {
+      color: var(--text-strong);
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .notif-subject {
+      color: var(--text-soft);
+    }
+
+    .notif-time {
+      color: var(--accent-bright);
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+
+    .notif-empty {
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 4px 2px;
+      font-style: italic;
+    }
+
+    .add-event-form {
+      display: none;
+      flex-direction: column;
+      gap: var(--space-1);
+      border-top: 1px solid var(--divider);
+      padding-top: var(--space-1);
+    }
+
+    .add-event-form.open {
+      display: flex;
+    }
+
+    .add-event-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-1);
+    }
+
+    .add-event-full {
+      grid-column: 1 / -1;
+    }
+
+    .alarm-panel {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .alarm-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-1);
+    }
+
+    .alarm-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      flex-wrap: wrap;
+    }
+
+    .alarm-volume-toggle {
+      min-width: 76px;
+      text-align: center;
+      border-color: var(--border-accent);
+      background: var(--accent-soft);
+      color: var(--accent-bright);
+    }
+
+    .placeholder-panel {
+      justify-content: center;
+    }
+
+    .placeholder-body {
+      display: grid;
+      place-items: center;
+      min-height: 180px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-style: italic;
+      text-align: center;
+    }
+
+    /* --- Tabs Panel --- */
+    .tabs-nav {
+      display: flex;
+      gap: 16px;
+      padding: 0 12px !important;
+      align-items: center;
+    }
+
+    .panel-tab {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      padding: 10px 0;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+      font-weight: 500;
+      font-family: var(--font-ui);
+    }
+
+    .panel-tab:hover {
+      color: var(--text-soft);
+    }
+
+    .panel-tab.active {
+      color: var(--accent-bright);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      min-height: 280px;
+    }
+
+    .tab-content.active {
+      display: flex;
+    }
+
+    .no-padding {
+      padding: 0 !important;
+    }
+
+    /* Calculator */
+    .calc-container {
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .calc-display {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--divider);
+      border-radius: 9px;
+      padding: 14px;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: 22px;
+      color: var(--text-strong);
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+      letter-spacing: 0.05em;
+    }
+
+    .calc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .calc-btn {
+      border: 1px solid var(--divider);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-soft);
+      padding: 12px 0;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-ui);
+      font-weight: 400;
+    }
+
+    .calc-btn:hover {
+      border-color: rgba(239, 68, 68, 0.45);
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--text-strong);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .calc-btn:active {
+      transform: translateY(0);
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .calc-btn.op {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--accent-bright);
+      font-weight: 600;
+    }
+
+    .calc-btn.op:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    .calc-btn.equal {
+      grid-row: span 2;
+      background: var(--accent-soft);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: var(--text-strong);
+      font-size: 20px;
+    }
+
+    .calc-btn.zero {
+      grid-column: span 2;
+    }
+
+    .calc-btn.clear {
+      color: var(--red);
+    }
+
+    .center-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      min-height: 100%;
+    }
+
+    .subsection {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .subsection-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-1);
+    }
+
+    .subsection-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-soft);
+    }
+
+    .subsection-divider {
+      border-top: 1px solid var(--divider);
+      padding-top: var(--space-2);
+    }
+
+    .note-status,
+    .alarm-next {
+      color: var(--text-muted);
+      font-size: 10px;
+      min-height: 14px;
+    }
+
+    .note-status.saved {
+      color: var(--green);
+    }
+
+    .apps-toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: var(--space-1);
+      margin-bottom: var(--space-1);
+    }
+
+    .apps-count {
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .apps-pinned-wrap {
+      margin-bottom: var(--space-2);
+    }
+
+    .apps-subtitle {
+      color: var(--text-muted);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .apps-dock {
+      min-height: 40px;
+      border: 1px dashed var(--divider);
+      border-radius: 9px;
+      padding: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-content: flex-start;
+    }
+
+    .dock-empty {
+      color: var(--text-muted);
+      font-size: 10px;
+      font-style: italic;
+    }
+
+    .dock-app {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 8px;
+      min-height: 28px;
+      padding: 0 8px;
+      color: var(--text-soft);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      max-width: 100%;
+    }
+
+    .dock-app:hover {
+      border-color: rgba(239, 68, 68, 0.38);
+      color: var(--text-strong);
+      background: var(--accent-soft);
+    }
+
+    .dock-icon {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .dock-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 130px;
+    }
+
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px 8px;
+    }
+
+    .launcher-row {
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      padding: 2px 6px;
+      min-height: 26px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      transition: 0.15s ease;
+    }
+
+    .launcher-row:hover {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.12);
+    }
+
+    .launcher-main {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .launcher-name {
+      color: var(--text-soft);
+      font-size: 12px;
+      font-weight: 400;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .launcher-row:hover .launcher-name {
+      color: var(--text-strong);
+    }
+
+    .app-pin {
+      width: 18px;
+      height: 18px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+      font-size: 10px;
+      padding: 0;
+      transition: 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .app-pin:hover {
+      border-color: rgba(251, 191, 36, 0.45);
+      color: var(--yellow);
+      background: rgba(251, 191, 36, 0.12);
+    }
+
+    .app-pin.pinned {
+      color: var(--yellow);
+      border-color: rgba(251, 191, 36, 0.45);
+    }
+
+    .app-icon,
+    .dock-icon {
+      font-size: 15px;
+      line-height: 1;
+      width: 18px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .app-icon-image {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid var(--divider);
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .app-icon-preview {
+      min-height: 30px;
+      border: 1px dashed var(--divider);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      color: var(--text-muted);
+      font-size: 10px;
+      overflow: hidden;
+    }
+
+    .app-icon-preview img {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid var(--divider);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .app-drop-zone {
+      border: 1px dashed var(--divider);
+      border-radius: 8px;
+      padding: 9px;
+      color: var(--text-muted);
+      font-size: 10px;
+      text-align: center;
+      transition: 0.15s ease;
+    }
+
+    .app-drop-zone.dragover {
+      border-color: rgba(239, 68, 68, 0.45);
+      background: var(--accent-soft);
+      color: var(--text);
+    }
+
+    .installed-app-list {
+      max-height: 140px;
+      overflow: auto;
+      border: 1px solid var(--divider);
+      border-radius: 8px;
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .installed-app-item {
+      border: none;
+      background: transparent;
+      color: var(--text-soft);
+      text-align: left;
+      padding: 4px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 11px;
+    }
+
+    .installed-app-item:hover,
+    .installed-app-item.active {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-strong);
+    }
+
+    .installed-app-empty {
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 4px;
+      font-style: italic;
+    }
+
+    .notes-split {
+      display: grid;
+      grid-template-columns: minmax(150px, 0.95fr) minmax(0, 1.4fr);
+      gap: var(--space-2);
+      min-height: 0;
+    }
+
+    .notes-list-pane {
+      min-height: 0;
+      border-right: 1px solid var(--divider);
+      padding-right: var(--space-2);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+
+    .notes-list-head {
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-soft);
+      gap: var(--space-1);
+    }
+
+    .notes-editor-pane {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      flex: 1;
+    }
+
+    .notes-input-area {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      min-height: 0;
+      flex: 1;
+    }
+
+    .note-input {
+      min-height: var(--density-row);
+      resize: none;
+    }
+
+    textarea.note-input {
+      min-height: 110px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      flex: 1;
+    }
+
+    .note-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-1);
+      margin-top: auto;
+      padding-top: 2px;
+    }
+
+    .saved-notes {
+      list-style: none;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 4px;
+    }
+
+    .saved-note {
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 8px;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+
+    .saved-note:hover,
+    .saved-note.active {
+      border-color: rgba(239, 68, 68, 0.38);
+      background: rgba(239, 68, 68, 0.12);
+    }
+
+    .saved-note-title {
+      color: var(--text-strong);
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 2px;
+    }
+
+    .saved-note-preview {
+      color: var(--text-soft);
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .saved-note-meta {
+      margin-top: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-1);
+    }
+
+    .saved-note-date {
+      color: var(--text-muted);
+      font-size: 9px;
+    }
+
+    .saved-note-delete {
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+
+    .saved-note-delete:hover {
+      color: var(--red);
+      background: rgba(251, 113, 133, 0.14);
+    }
+
+    .notes-divider {
+      display: none;
+    }
+
+    .bottom-strip {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel-strong);
+      padding: var(--density-pad);
+      min-height: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-2);
+    }
+
+    .session-strip-wrap,
+    .ticker-strip-wrap {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .bottom-tools-wrap {
+      min-width: 0;
+      display: flex;
+      flex-direction: row;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .bottom-tools-label {
+      color: var(--text-soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .bottom-status-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .bottom-controls-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-1);
+      flex-wrap: wrap;
+    }
+
+    .bottom-controls-row .top-controls {
+      justify-content: flex-start;
+      gap: var(--space-1);
+    }
+
+    .ticker-strip-label {
+      color: var(--text-soft);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .market-clock-strip {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .market-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      min-height: 28px;
+      padding: 0 9px;
+      font-size: 10px;
+      white-space: nowrap;
+      color: var(--text-soft);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .market-chip-name {
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    .market-chip-state {
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 9px;
+    }
+
+    .market-chip-time {
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+    }
+
+    .market-chip.open .market-chip-state {
+      color: var(--green);
+    }
+
+    .ticker-tape {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      min-height: 34px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      overflow: hidden;
+      gap: 6px;
+      padding-right: 6px;
+    }
+
+    .ticker-track {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      white-space: nowrap;
+      animation: tickerScroll 30s linear infinite;
+      padding: 0 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      min-width: 0;
+    }
+
+    .ticker-track:hover {
+      animation-play-state: paused;
+    }
+
+    @keyframes tickerScroll {
+      0% {
+        transform: translateX(0);
+      }
+
+      100% {
+        transform: translateX(-50%);
+      }
+    }
+
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      color: var(--text-soft);
+      transition: 0.15s ease;
+    }
+
+    .ticker-item:hover {
+      color: var(--text-strong);
+    }
+
+    .ticker-sym {
+      color: var(--text-strong);
+      font-size: 10px;
+      letter-spacing: 0.06em;
+    }
+
+    .ticker-price {
+      color: var(--text);
+    }
+
+    .ticker-chg.pos {
+      color: var(--green);
+    }
+
+    .ticker-chg.neg {
+      color: var(--red);
+    }
+
+    .ticker-sep {
+      color: var(--text-muted);
+      opacity: 0.4;
+    }
+
+    .ticker-manage-toggle {
+      height: 24px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: rgba(0, 0, 0, 0.4);
+      color: var(--text-soft);
+      font-family: var(--font-ui);
+      font-size: 10px;
+      padding: 0 9px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .ticker-manage {
+      display: none;
+      grid-template-columns: 1fr auto auto minmax(130px, auto);
+      gap: 6px;
+      align-items: center;
+    }
+
+    .ticker-manage.open {
+      display: grid;
+    }
+
+    .fade-in {
+      animation: fadeIn 0.18s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(2px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    body[data-right-rail="collapsed"] .dashboard-grid {
+      grid-template-columns: var(--left-rail) minmax(0, 1fr);
+    }
+
+    body[data-right-rail="collapsed"] .right-rail {
+      display: none;
+    }
+
+    body[data-focus="on"] .dashboard-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    body[data-focus="on"] .left-rail,
+    body[data-focus="on"] .right-rail,
+    body[data-focus="on"] .main-support {
+      display: none;
+    }
+
+    body[data-focus="on"] .main-canvas {
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    @media (min-width: 1700px) {
+      :root {
+        --left-rail: 360px;
+        --right-rail: 430px;
+      }
+
+      .top-bar {
+        grid-template-columns: minmax(240px, max-content) minmax(0, 1fr) minmax(340px, max-content);
+      }
+
+      .apps-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (min-width: 2550px) {
+      :root {
+        --left-rail: 420px;
+        --right-rail: 500px;
+      }
+
+      body {
+        padding: var(--space-3);
+      }
+
+      .home-shell {
+        gap: var(--space-3);
+      }
+
+      .dashboard-grid {
+        gap: var(--space-3);
+      }
+
+      .main-support {
+        grid-template-columns: minmax(0, 2.1fr) minmax(280px, 1fr);
+      }
+
+      .apps-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1500px) {
+      :root {
+        --left-rail: 290px;
+        --right-rail: 350px;
+      }
+
+      .top-bar {
+        grid-template-columns: minmax(180px, max-content) minmax(0, 1fr) minmax(200px, max-content);
+      }
+
+      .clock {
+        text-align: right;
+      }
+
+      .apps-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1280px) {
+      :root {
+        --top-height: auto;
+        --bottom-height: auto;
+      }
+
+      body {
+        overflow: auto;
+      }
+
+      .home-shell {
+        height: auto;
+        min-height: 100%;
+        grid-template-rows: auto auto auto;
+      }
+
+      .top-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .clock {
+        text-align: left;
+      }
+
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .left-rail {
+        grid-template-rows: minmax(260px, auto) minmax(220px, auto);
+      }
+
+      .main-canvas {
+        grid-template-rows: minmax(300px, auto) minmax(200px, auto);
+      }
+
+      .main-support {
+        grid-template-columns: 1fr;
+      }
+
+      .right-rail {
+        display: grid;
+      }
+
+      .right-rail {
+        grid-template-rows: minmax(240px, auto) minmax(260px, auto);
+      }
+
+      .notifs-card {
+        min-height: 0;
+      }
+
+      .bottom-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .notes-split {
+        grid-template-columns: 1fr;
+      }
+
+      .apps-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .notes-list-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--divider);
+        padding-right: 0;
+        padding-bottom: var(--space-2);
+        max-height: 220px;
+      }
+
+      .ticker-manage {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .ticker-status {
+        grid-column: 1 / -1;
+      }
+    }
+  </style>
+</head>
+
+<body data-density="comfortable" data-focus="off" data-right-rail="open">
+  <div class="home-shell" id="home-shell">
+
+    <header class="top-bar" aria-label="Home controls">
+      <div class="brand">
+        <div class="brand-icon">⌘</div>
+        <div>
+          <h1>OpenClaw Hub</h1>
+          <p>Execution dashboard</p>
+        </div>
+      </div>
+
+      <div class="top-ticker-wrap">
+        <div class="ticker-tape">
+          <div class="ticker-track" id="ticker-track"></div>
+          <button class="ticker-manage-toggle" id="ticker-manage-toggle" type="button">+ Ticker</button>
+        </div>
+        <div class="ticker-manage" id="ticker-manage-panel">
+          <input id="ticker-symbol-input" class="ticker-input" type="text" placeholder="Ticker (AAPL, SPY, BTCUSD)">
+          <button class="btn-sm" id="btn-add-ticker" type="button">Add</button>
+          <button class="btn-sm danger" id="btn-remove-ticker" type="button">Remove</button>
+          <span class="ticker-status" id="ticker-manage-status"></span>
+        </div>
+      </div>
+
+      <div class="clock" id="clock-strip">
+        <div class="clock-date">Loading…</div>
+      </div>
+    </header>
+
+    <main class="dashboard-grid" id="dashboard-grid">
+      <aside class="left-rail" id="left-rail">
+        <section class="panel weather-card" aria-label="Weather" tabindex="-1">
+          <div class="panel-head">
+            <span class="panel-label">Weather</span>
+            <span class="panel-label" id="weather-location"
+              style="text-transform:none; color:var(--text); font-weight:500;">Local</span>
+          </div>
+          <div class="panel-body" style="display:flex; flex-direction:column; gap:var(--space-2);">
+            <div class="weather-row">
+              <div class="weather-temp" id="weather-temp">--°</div>
+              <div class="weather-desc" id="weather-summary">Loading...</div>
+              <div class="weather-detail" id="weather-extra"></div>
+            </div>
+            <div class="weather-forecast" id="weather-forecast">
+              <!-- Forecast items will be injected here via JS -->
+            </div>
+          </div>
+        </section>
+
+        <section class="panel tabs-panel" aria-label="Tools" tabindex="-1">
+          <div class="panel-head tabs-nav">
+            <button class="panel-tab active" data-tab="calculator">Calculator</button>
+            <button class="panel-tab" data-tab="blank" id="tab-btn-blank">Blank</button>
+          </div>
+          <div class="panel-body no-padding">
+            <div class="tab-content active" id="tab-content-calculator">
+              <div class="calc-container">
+                <div class="calc-display" id="calc-display">0</div>
+                <div class="calc-grid">
+                  <button class="calc-btn op clear" data-calc="C">C</button>
+                  <button class="calc-btn op" data-calc="/">÷</button>
+                  <button class="calc-btn op" data-calc="*">×</button>
+                  <button class="calc-btn op" data-calc="DEL">←</button>
+
+                  <button class="calc-btn" data-calc="7">7</button>
+                  <button class="calc-btn" data-calc="8">8</button>
+                  <button class="calc-btn" data-calc="9">9</button>
+                  <button class="calc-btn op" data-calc="-">-</button>
+
+                  <button class="calc-btn" data-calc="4">4</button>
+                  <button class="calc-btn" data-calc="5">5</button>
+                  <button class="calc-btn" data-calc="6">6</button>
+                  <button class="calc-btn op" data-calc="+">+</button>
+
+                  <button class="calc-btn" data-calc="1">1</button>
+                  <button class="calc-btn" data-calc="2">2</button>
+                  <button class="calc-btn" data-calc="3">3</button>
+                  <button class="calc-btn op equal" data-calc="=">=</button>
+
+                  <button class="calc-btn zero" data-calc="0">0</button>
+                  <button class="calc-btn" data-calc=".">.</button>
+                </div>
+              </div>
+            </div>
+            <div class="tab-content" id="tab-content-blank">
+              <div class="placeholder-body">Empty For Now</div>
+            </div>
+          </div>
+        </section>
+
+      </aside>
+
+      <section class="main-canvas" id="main-canvas">
+        <section class="panel markets-card" aria-label="Economic calendar" tabindex="-1">
+          <div class="panel-head">
+            <span class="panel-label">Economic Calendar</span>
+            <div class="head-actions">
+              <div class="impact-filters" role="group" aria-label="Impact filters">
+                <button class="impact-chip active" type="button" data-impact-filter="all"
+                  id="econ-filter-all">All</button>
+                <button class="impact-chip" type="button" data-impact-filter="high" id="econ-filter-high">High</button>
+                <button class="impact-chip" type="button" data-impact-filter="medium"
+                  id="econ-filter-medium">Med</button>
+                <button class="impact-chip" type="button" data-impact-filter="low" id="econ-filter-low">Low</button>
+              </div>
+              <span class="status-pill" id="economy-status"><span class="dot"></span> Loading</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="center-stack">
+              <div class="subsection">
+                <ul class="econ-list" id="economy-calendar-list"></ul>
+              </div>
+
+              <div class="subsection subsection-divider" id="news-panel">
+                <div class="subsection-head">
+                  <span class="subsection-title">News Feed</span>
+                  <div class="head-actions">
+                    <div class="news-tabs" role="tablist" aria-label="News categories">
+                      <button id="news-tab-all" class="news-tab active" type="button" role="tab" aria-selected="true"
+                        data-news-tab="all">All</button>
+                      <button id="news-tab-us" class="news-tab" type="button" role="tab" aria-selected="false"
+                        data-news-tab="us">US</button>
+                      <button id="news-tab-world" class="news-tab" type="button" role="tab" aria-selected="false"
+                        data-news-tab="world">World</button>
+                      <button id="news-tab-crypto" class="news-tab" type="button" role="tab" aria-selected="false"
+                        data-news-tab="crypto">Crypto</button>
+                    </div>
+                    <button class="manage-toggle" id="news-feeds-toggle" type="button">RSS</button>
+                    <span class="status-pill" id="news-feed-status"><span class="dot"></span> Loading</span>
+                  </div>
+                </div>
+
+                <div class="manage-panel" id="news-feeds-panel">
+                  <div class="manage-row">
+                    <input id="news-feed-name" class="manage-input" type="text" placeholder="Feed name">
+                    <input id="news-feed-url" class="manage-input" type="text" placeholder="RSS URL">
+                  </div>
+                  <div class="manage-row">
+                    <select id="news-feed-select" class="manage-input"></select>
+                    <div class="manage-actions">
+                      <button class="btn-sm" id="btn-add-news-feed" type="button">Add</button>
+                      <button class="btn-sm danger" id="btn-remove-news-feed" type="button">Remove</button>
+                    </div>
+                  </div>
+                  <div class="manage-status" id="news-feed-manage-status"></div>
+                </div>
+
+                <div class="news-stack">
+                  <div class="news-pane active" id="news-pane-all" role="tabpanel" aria-labelledby="news-tab-all">
+                    <ul class="news-list" id="news-all-list"></ul>
+                  </div>
+                  <div class="news-pane" id="news-pane-us" role="tabpanel" aria-labelledby="news-tab-us">
+                    <ul class="news-list" id="news-us-list"></ul>
+                  </div>
+                  <div class="news-pane" id="news-pane-world" role="tabpanel" aria-labelledby="news-tab-world">
+                    <ul class="news-list" id="news-world-list"></ul>
+                  </div>
+                  <div class="news-pane" id="news-pane-crypto" role="tabpanel" aria-labelledby="news-tab-crypto">
+                    <ul class="news-list" id="news-crypto-list"></ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="main-support" id="main-support">
+          <section class="panel webapps-card" id="launchers-panel" aria-label="Launchers" tabindex="-1">
+            <div class="panel-head">
+              <span class="panel-label">Launchers</span>
+              <button class="manage-toggle" id="manage-apps-toggle" type="button">Manage</button>
+            </div>
+            <div class="panel-body">
+              <div class="apps-toolbar">
+                <input id="webapp-filter" class="apps-filter" type="text" placeholder="Search launchers..."
+                  aria-label="Search launchers">
+                <span class="apps-count" id="webapps-count">0</span>
+              </div>
+
+              <div class="apps-pinned-wrap">
+                <div class="apps-subtitle">Pinned</div>
+                <div class="apps-dock" id="webapps-dock"></div>
+              </div>
+
+              <div class="apps-grid" id="webapps-list"></div>
+
+              <div class="manage-panel" id="manage-panel">
+                <div class="manage-row">
+                  <input id="webapp-id" class="manage-input" type="text" placeholder="ID (e.g. market-scanner)">
+                  <input id="webapp-name" class="manage-input" type="text" placeholder="Display name">
+                </div>
+                <div class="manage-row manage-row-target">
+                  <select id="webapp-launch-type" class="manage-input">
+                    <option value="external-url">External Browser</option>
+                    <option value="internal-url">Built-in Window</option>
+                    <option value="app-command">App Command</option>
+                    <option value="file-path">File / Shortcut</option>
+                  </select>
+                  <input id="webapp-target" class="manage-input" type="text" placeholder="URL (https://example.com)">
+                </div>
+                <div class="manage-row manage-row-icon">
+                  <input id="webapp-icon" class="manage-input" type="text" placeholder="Icon emoji or drop image here">
+                  <div class="manage-actions">
+                    <button class="btn-sm" id="btn-pick-webapp-target" type="button">Target</button>
+                    <button class="btn-sm" id="btn-pick-webapp-icon" type="button">Icon</button>
+                  </div>
+                </div>
+                <div class="app-icon-preview" id="webapp-icon-preview">Icon preview</div>
+                <div class="app-drop-zone" id="webapp-drop-zone">Drop `.desktop`, `.url`, `.webloc`, or executable files
+                  to auto-add launcher</div>
+
+                <div class="panel-label" style="padding-top:4px;">Installed Apps</div>
+                <div class="manage-row manage-row-installed">
+                  <input id="installed-app-search" class="manage-input" type="text" placeholder="Search installed apps">
+                  <button class="btn-sm" id="btn-refresh-installed-apps" type="button">Refresh</button>
+                </div>
+                <div id="installed-app-list" class="installed-app-list manage-full"></div>
+                <div class="manage-actions">
+                  <button class="btn-sm" id="btn-use-installed-app" type="button">Use Selected</button>
+                  <button class="btn-sm" id="btn-add-installed-app" type="button">Add Selected</button>
+                </div>
+
+                <div class="manage-row manage-row-remove">
+                  <select id="webapp-remove-select" class="manage-input manage-full">
+                    <option value="">Select launcher to remove...</option>
+                  </select>
+                </div>
+                <div class="manage-actions">
+                  <button class="btn-sm" id="btn-add-webapp" type="button">Add</button>
+                  <button class="btn-sm" id="btn-save-webapp-window" type="button">Save Window</button>
+                  <button class="btn-sm danger" id="btn-remove-webapp" type="button">Remove</button>
+                </div>
+                <div class="manage-status" id="webapp-manage-status"></div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </section>
+
+      <aside class="right-rail" id="right-rail">
+        <section class="panel notifs-card" id="notifications-panel" aria-label="Notifications and alarm" tabindex="-1">
+          <div class="panel-head">
+            <span class="panel-label">Notifications + Alarm</span>
+          </div>
+
+          <div class="panel-body rail-scroll">
+            <details class="rail-block" open>
+              <summary>
+                <span>Inbox</span>
+                <span class="notif-badge" id="gmail-unread">-</span>
+              </summary>
+              <div class="rail-content">
+                <ul class="notif-list" id="gmail-list"></ul>
+              </div>
+            </details>
+
+            <details class="rail-block" open>
+              <summary>
+                <span>Calendar</span>
+                <button class="btn-sm" id="btn-toggle-add-event" type="button">+ Event</button>
+              </summary>
+              <div class="rail-content">
+                <ul class="notif-list" id="calendar-list"></ul>
+                <div class="notif-empty" id="calendar-next"></div>
+
+                <div class="add-event-form" id="add-event-form">
+                  <input id="event-title" class="add-event-input add-event-full" type="text" placeholder="Event title">
+                  <div class="add-event-row">
+                    <input id="event-date" class="add-event-input" type="date">
+                    <input id="event-time" class="add-event-input" type="time">
+                  </div>
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <span id="event-status" class="note-status" style="margin-right:auto;"></span>
+                    <button class="btn" id="btn-add-event" type="button">Add to Calendar</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="rail-block" open>
+              <summary>
+                <span>Alarm</span>
+              </summary>
+              <div class="rail-content">
+                <div class="alarm-panel">
+                  <div class="alarm-row">
+                    <input id="alarm-datetime" class="alarm-input" type="datetime-local">
+                    <input id="alarm-label" class="alarm-input" type="text" placeholder="Alarm label (optional)">
+                  </div>
+                  <div class="alarm-actions">
+                    <span class="note-status alarm-status" id="alarm-status"></span>
+                    <button class="btn-sm alarm-volume-toggle" id="alarm-volume-toggle" type="button"
+                      title="Click to cycle alarm volume">Vol 50%</button>
+                    <button class="btn" id="btn-set-alarm" type="button">Set Alarm</button>
+                    <button class="btn-sm danger" id="btn-clear-alarm" type="button">Clear</button>
+                  </div>
+                  <div class="alarm-next" id="alarm-next">No active alarm</div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+
+        <section class="panel notes-card" id="notes-panel" aria-label="Notes" tabindex="-1">
+          <div class="panel-head">
+            <span class="panel-label">Notes</span>
+            <span class="note-status" id="note-save-status"></span>
+          </div>
+          <div class="panel-body notes-split">
+            <aside class="notes-list-pane">
+              <div class="notes-list-head">
+                <span>Recent</span>
+                <button class="btn-sm" id="btn-new-note" type="button">New</button>
+              </div>
+              <ul class="saved-notes" id="saved-notes-list"></ul>
+            </aside>
+
+            <section class="notes-editor-pane">
+              <div class="notes-input-area">
+                <input id="note-title" class="note-input" type="text" placeholder="Note title...">
+                <textarea id="note-body" class="note-input" rows="7"
+                  placeholder="Write notes, execution steps, or reminders..."></textarea>
+                <div class="note-actions">
+                  <span class="note-status" id="notes-status"></span>
+                  <button class="btn" id="btn-save-note" type="button">Save</button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <footer class="bottom-strip">
+      <div class="session-strip-wrap">
+        <div class="market-clock-strip" id="market-clock-strip"></div>
+      </div>
+
+      <div class="bottom-tools-wrap">
+        <div class="bottom-status-row">
+          <span class="status-pill" id="openclaw-status"><span class="dot"></span> OpenClaw: Checking</span>
+          <span class="sys-inline" id="home-sys-stats">CPU --% · MEM --%</span>
+        </div>
+        <div class="bottom-controls-row">
+          <div class="top-controls">
+            <button id="density-toggle" class="top-toggle" type="button" aria-pressed="false"
+              title="Toggle compact density (Ctrl+Shift+D)">Density</button>
+            <button id="focus-mode-toggle" class="top-toggle" type="button" aria-pressed="false"
+              title="Toggle focus mode (Ctrl+Shift+F)">Focus</button>
+            <button id="right-rail-toggle" class="top-toggle" type="button" aria-pressed="false"
+              title="Toggle right rail (Ctrl+Shift+R)">Right Rail</button>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script type="module" src="./home.js"></script>
+</body>
+
+</html>

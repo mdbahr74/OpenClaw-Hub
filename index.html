@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OpenClaw Hub</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div id="app-container">
+    <header id="top-bar">
+      <div id="topbar-logo">
+        <img src="assets/logo.png" alt="Logo" class="logo-img" />
+        <span class="logo-text">OpenClaw Hub</span>
+      </div>
+      <div id="topbar-quote-container">
+        <span id="topbar-quote">"Loading..."</span>
+      </div>
+      <div id="topbar-controls">
+        <span id="sys-stats">CPU: --% | MEM: --</span>
+      </div>
+    </header>
+    <div id="main-content">
+      <nav id="side-bar">
+        <ul id="tab-bar">
+          <li data-module="core" class="active">
+            <span class="icon">🏠</span><span class="label">Core</span>
+          </li>
+          <li data-module="api">
+            <span class="icon">🔑</span><span class="label">API</span>
+          </li>
+          <li data-module="history">
+            <span class="icon">🗂️</span><span class="label">History</span>
+          </li>
+          <li data-module="pine_agent">
+            <span class="icon">🌲</span><span class="label">Pine Agent</span>
+          </li>
+        </ul>
+      </nav>
+      <main id="content">
+        <iframe id="tab-core" class="active" src="app.html"></iframe>
+        <iframe id="tab-api" src="modules/api-keys/index.html"></iframe>
+        <iframe id="tab-history" src="modules/history/index.html"></iframe>
+        <iframe id="tab-pine_agent" src="http://localhost:3001"></iframe>
+      </main>
+    </div>
+    <footer id="status-bar">
+      <div id="gmail-status"></div>
+      <div id="calendar-status"></div>
+    </footer>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "mainWindow": {
+    "bounds": {
+      "width": 2036,
+      "height": 1040,
+      "x": 2564,
+      "y": 1116
+    },
+    "isMaximized": false
+  },
+  "webApps": {
+    "external:browser": {
+      "bounds": {
+        "width": 1220,
+        "height": 840,
+        "x": 3998,
+        "y": 1740
+      },
+      "isMaximized": false,
+      "manual": false
+    }
+  },
+  "pinnedAppIds": []
+}

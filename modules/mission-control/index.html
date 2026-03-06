@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mission Control</title>
+  <style>
+    :root {
+      --bg: #0b0b0f;
+      --panel: #141419;
+      --panel2: #101015;
+      --border: #420000;
+      --text: #f0ece8;
+      --muted: #a8a29e;
+      --accent: #420000;
+      --accent2: #5a0909;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #141419, #0b0b0f);
+    }
+
+    header .title {
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    header .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    header .right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr 360px;
+      height: calc(100vh - 48px);
+    }
+
+    nav {
+      border-right: 1px solid var(--border);
+      background: #101015;
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--text);
+      user-select: none;
+    }
+
+    .nav-item small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .nav-item.active {
+      background: rgba(66, 0, 0, 0.22);
+      border-color: rgba(66, 0, 0, 0.48);
+    }
+
+    main {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    aside {
+      border-left: 1px solid var(--border);
+      background: #0b0b0f;
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      background: rgba(20, 20, 25, 0.92);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .panel + .panel { margin-top: 12px; }
+
+    .panel h2 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #f5f5f4;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .muted { color: var(--muted); }
+
+    .btn {
+      background: #141419;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .btn.primary {
+      background: rgba(66, 0, 0, 0.26);
+      border-color: rgba(66, 0, 0, 0.5);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Kanban */
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(220px, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+
+    .col {
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      border-radius: 14px;
+      overflow: hidden;
+      min-height: 240px;
+    }
+
+    .col-header {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      color: #f0ece8;
+      background: rgba(16, 16, 22, 0.76);
+    }
+
+    .col-header .count { color: var(--muted); }
+
+    .cards { padding: 10px; display: grid; gap: 8px; }
+
+    .card {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(18,18,24,0.84);
+      border-radius: 12px;
+      padding: 10px;
+      cursor: grab;
+    }
+
+    .card .meta {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(66,0,0,0.48);
+      color: #efc5c5;
+      font-size: 11px;
+      background: rgba(66,0,0,0.18);
+    }
+
+    .activity {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 520px;
+      overflow: auto;
+      color: #d6d3d1;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: #101015;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      outline: none;
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="title">Mission Control</div>
+      <div class="subtitle">Make the background visible: tasks, schedule, memory, docs, agents.</div>
+    </div>
+    <div class="right">
+      <button class="btn" id="refresh">Refresh</button>
+      <span id="connection" class="muted">Gateway: --</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav>
+      <div class="nav-item active" data-screen="tasks">
+        <div>
+          <div>Tasks</div>
+          <small>Kanban + what I’m doing</small>
+        </div>
+      </div>
+      <div class="nav-item" data-screen="schedule">
+        <div>
+          <div>Schedule</div>
+          <small>Cron + alarms</small>
+        </div>
+      </div>
+      <div class="nav-item" data-screen="memory">
+        <div>
+          <div>Memory</div>
+          <small>Daily logs + long-term</small>
+        </div>
+      </div>
+      <div class="nav-item" data-screen="docs">
+        <div>
+          <div>Docs</div>
+          <small>Saved drafts</small>
+        </div>
+      </div>
+      <div class="nav-item" data-screen="team">
+        <div>
+          <div>Team</div>
+          <small>Agents + mission</small>
+        </div>
+      </div>
+      <div class="nav-item" data-screen="office">
+        <div>
+          <div>Office</div>
+          <small>2D view (later)</small>
+        </div>
+      </div>
+
+      <div class="hint">
+        Tip: we’ll start with Tasks + Activity Feed. That alone should stop the “what is happening?” confusion.
+      </div>
+    </nav>
+
+    <main>
+      <section class="screen active" id="screen-tasks">
+        <div class="panel">
+          <h2>Task Board</h2>
+          <div class="input-row">
+            <input id="new-task" type="text" placeholder="New task (example: Draft reply to motion)" />
+            <button class="btn primary" id="add-task">Add</button>
+          </div>
+          <div class="hint">Drag cards between columns. Backlog auto-imports unchecked tasks from your NOTES.md files.</div>
+        </div>
+
+        <div style="height: 12px"></div>
+
+        <div class="kanban" id="kanban"></div>
+      </section>
+
+      <section class="screen" id="screen-schedule">
+        <div class="row">
+          <div class="panel">
+            <h2>Cron Jobs</h2>
+            <div class="muted" id="cron-output">Loading...</div>
+          </div>
+          <div class="panel">
+            <h2>Alarms</h2>
+            <div class="muted" id="alarm-output">Loading...</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-memory">
+        <div class="panel">
+          <h2>Memory</h2>
+          <div class="muted">This will show daily memory files and long-term MEMORY.md.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-docs">
+        <div class="panel">
+          <h2>Docs</h2>
+          <div class="muted">This will become the searchable library for drafts and generated docs.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-team">
+        <div class="panel">
+          <h2>Team</h2>
+          <div class="muted">We’ll map your agents/sub-agents and a mission statement here.</div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-office">
+        <div class="panel">
+          <h2>Office</h2>
+          <div class="muted">Optional “fun” 2D visualization. We can add after the core screens work.</div>
+        </div>
+      </section>
+    </main>
+
+    <aside>
+      <div class="panel">
+        <h2>Live Activity Feed</h2>
+        <div class="activity" id="activity">Loading...</div>
+        <div style="height: 10px"></div>
+        <button class="btn" id="tail-more">Load more</button>
+      </div>
+
+      <div class="panel">
+        <h2>Quick Actions</h2>
+        <div class="hint">These will become real buttons that trigger workflows (draft motion replies, summarize PDFs, run trading checks, etc.).</div>
+        <div style="display: grid; gap: 8px; margin-top: 10px;">
+          <button class="btn" disabled>Draft motion reply (soon)</button>
+          <button class="btn" disabled>Summarize newest court PDF (soon)</button>
+          <button class="btn" disabled>CryptoHub daily review (soon)</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const COLUMNS = [
+      { id: 'backlog', label: 'Backlog' },
+      { id: 'doing', label: 'Doing' },
+      { id: 'review', label: 'Review' },
+      { id: 'done', label: 'Done' }
+    ];
+
+    let missionState = null;
+    let activityOffset = 0;
+
+    function invoker() {
+      return window.commandDeskInvoke || (window.api && window.api.invoke);
+    }
+
+    function uid() {
+      return Math.random().toString(16).slice(2) + Date.now().toString(16);
+    }
+
+    function normalizeImportedTask(t) {
+      return {
+        id: uid(),
+        text: t.text,
+        mode: t.mode,
+        status: 'backlog',
+        createdAt: Date.now(),
+        imported: true
+      };
+    }
+
+    function ensureBaseState() {
+      if (!missionState) {
+        missionState = { tasks: [] };
+      }
+      if (!Array.isArray(missionState.tasks)) {
+        missionState.tasks = [];
+      }
+    }
+
+    function renderKanban() {
+      ensureBaseState();
+      const root = document.getElementById('kanban');
+      root.innerHTML = '';
+
+      for (const col of COLUMNS) {
+        const tasks = missionState.tasks.filter(t => (t.status || 'backlog') === col.id);
+        const colEl = document.createElement('div');
+        colEl.className = 'col';
+        colEl.dataset.col = col.id;
+
+        colEl.innerHTML = `
+          <div class="col-header">
+            <div>${col.label}</div>
+            <div class="count">${tasks.length}</div>
+          </div>
+          <div class="cards" data-dropzone="${col.id}"></div>
+        `;
+
+        const cards = colEl.querySelector('.cards');
+        cards.addEventListener('dragover', ev => {
+          ev.preventDefault();
+        });
+        cards.addEventListener('drop', ev => {
+          ev.preventDefault();
+          const taskId = ev.dataTransfer.getData('text/taskId');
+          if (!taskId) return;
+          moveTask(taskId, col.id);
+        });
+
+        tasks.forEach(task => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.draggable = true;
+          card.dataset.taskId = task.id;
+          card.addEventListener('dragstart', ev => {
+            ev.dataTransfer.setData('text/taskId', task.id);
+            ev.dataTransfer.effectAllowed = 'move';
+          });
+
+          const mode = task.mode ? String(task.mode).toUpperCase() : 'CUSTOM';
+          card.innerHTML = `
+            <div>${escapeHtml(task.text)}</div>
+            <div class="meta">
+              <span class="tag">${escapeHtml(mode)}</span>
+              <span>${new Date(task.createdAt || Date.now()).toLocaleDateString()}</span>
+            </div>
+          `;
+          cards.appendChild(card);
+        });
+
+        root.appendChild(colEl);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function loadMissionState() {
+      const invoke = invoker();
+      if (!invoke) return;
+      const loaded = await invoke('mission:tasks:get', null);
+      missionState = loaded || { tasks: [] };
+    }
+
+    async function saveMissionState() {
+      const invoke = invoker();
+      if (!invoke) return;
+      ensureBaseState();
+      await invoke('mission:tasks:set', missionState);
+    }
+
+    async function importBacklogFromNotes() {
+      const invoke = invoker();
+      if (!invoke) return;
+
+      const payload = await invoke('home:listTasks', null);
+      const imported = Array.isArray(payload?.tasks) ? payload.tasks : [];
+
+      // De-dupe by text (simple but effective).
+      const existingTexts = new Set(missionState.tasks.map(t => t.text.trim().toLowerCase()));
+      const newOnes = imported
+        .filter(t => t && t.text)
+        .map(normalizeImportedTask)
+        .filter(t => !existingTexts.has(t.text.trim().toLowerCase()));
+
+      if (newOnes.length) {
+        missionState.tasks.unshift(...newOnes);
+        await saveMissionState();
+      }
+    }
+
+    async function moveTask(taskId, status) {
+      ensureBaseState();
+      const t = missionState.tasks.find(x => x.id === taskId);
+      if (!t) return;
+      t.status = status;
+      await saveMissionState();
+      renderKanban();
+    }
+
+    async function addTask() {
+      const input = document.getElementById('new-task');
+      const text = (input.value || '').trim();
+      if (!text) return;
+
+      ensureBaseState();
+      missionState.tasks.unshift({
+        id: uid(),
+        text,
+        mode: 'custom',
+        status: 'backlog',
+        createdAt: Date.now()
+      });
+      input.value = '';
+      await saveMissionState();
+      renderKanban();
+    }
+
+    async function refreshActivity(more = false) {
+      const invoke = invoker();
+      if (!invoke) return;
+
+      if (!more) {
+        activityOffset = 0;
+      }
+
+      const data = await invoke('mission:activity:tail', { offset: activityOffset, limit: 120 });
+      const lines = Array.isArray(data?.lines) ? data.lines : [];
+      const nextOffset = Number(data?.nextOffset || 0);
+      activityOffset = nextOffset;
+
+      const el = document.getElementById('activity');
+      if (!more) {
+        el.textContent = lines.join('\n');
+      } else {
+        el.textContent = el.textContent + '\n' + lines.join('\n');
+      }
+    }
+
+    async function refreshSchedule() {
+      const invoke = invoker();
+      if (!invoke) return;
+
+      const cron = await invoke('mission:cron:list', null);
+      const alarm = await invoke('alarm:get', null);
+
+      document.getElementById('cron-output').textContent = JSON.stringify(cron, null, 2);
+      document.getElementById('alarm-output').textContent = JSON.stringify(alarm, null, 2);
+    }
+
+    async function refreshConnection() {
+      const invoke = invoker();
+      if (!invoke) return;
+
+      try {
+        const status = await invoke('openclaw:connectionStatus', null);
+        const el = document.getElementById('connection');
+        const ok = Boolean(status?.ok);
+        el.textContent = ok ? `Gateway: OK (${status?.baseUrl || 'local'})` : 'Gateway: not connected';
+      } catch {
+        document.getElementById('connection').textContent = 'Gateway: --';
+      }
+    }
+
+    function setScreen(id) {
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.screen === id);
+      });
+      document.querySelectorAll('.screen').forEach(el => {
+        el.classList.toggle('active', el.id === `screen-${id}`);
+      });
+    }
+
+    function wireNav() {
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.addEventListener('click', async () => {
+          const id = el.dataset.screen;
+          setScreen(id);
+          if (id === 'schedule') {
+            await refreshSchedule();
+          }
+        });
+      });
+    }
+
+    async function refreshAll() {
+      await refreshConnection();
+      await loadMissionState();
+      await importBacklogFromNotes();
+      renderKanban();
+      await refreshActivity(false);
+    }
+
+    document.getElementById('add-task').addEventListener('click', addTask);
+    document.getElementById('new-task').addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') addTask();
+    });
+
+    document.getElementById('refresh').addEventListener('click', refreshAll);
+    document.getElementById('tail-more').addEventListener('click', () => refreshActivity(true));
+
+    wireNav();
+    refreshAll();
+    setInterval(() => refreshConnection(), 5000);
+  </script>
+</body>
+</html>

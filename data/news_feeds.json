@@ -1,0 +1,12 @@
+[
+  {
+    "id": "reuters_markets",
+    "name": "Reuters Markets",
+    "rss": "https://feeds.reuters.com/reuters/marketsNews"
+  },
+  {
+    "id": "coindesk",
+    "name": "CoinDesk",
+    "rss": "https://www.coindesk.com/arc/outboundfeeds/rss/"
+  }
+]

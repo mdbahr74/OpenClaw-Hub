@@ -1,0 +1,282 @@
+[
+  {
+    "id": "antigravity",
+    "name": "Antigravity",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "/usr/share/antigravity/antigravity",
+    "command": "/usr/share/antigravity/antigravity",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-elgodljhghcphgfihlhnoabpmegbkddl-profile_4",
+    "name": "Bitunix",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=elgodljhghcphgfihlhnoabpmegbkddl",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=elgodljhghcphgfihlhnoabpmegbkddl",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-lnlnfonolfbkkoggccdoannljogeipbl-profile_4",
+    "name": "BTCC",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=lnlnfonolfbkkoggccdoannljogeipbl",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=lnlnfonolfbkkoggccdoannljogeipbl",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-ndggmdhaiommncaaemobgmoggdmngfbl-profile_4",
+    "name": "BYDFi",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=ndggmdhaiommncaaemobgmoggdmngfbl",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=ndggmdhaiommncaaemobgmoggdmngfbl",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-cadlkienfkclaiaibeoongdcgmdikeeg-profile_4",
+    "name": "ChatGPT",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=cadlkienfkclaiaibeoongdcgmdikeeg",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=cadlkienfkclaiaibeoongdcgmdikeeg",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium",
+    "name": "Chromium",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=/app/bin/chromium --file-forwarding org.chromium.Chromium @@u @@",
+    "command": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=/app/bin/chromium --file-forwarding org.chromium.Chromium @@u @@",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "chrome-ocjfohfplnhpljgbibfijafohbeafgli-default",
+    "name": "ClawHub",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "/opt/google/chrome/google-chrome --profile-directory=Default --app-id=ocjfohfplnhpljgbibfijafohbeafgli",
+    "command": "/opt/google/chrome/google-chrome --profile-directory=Default --app-id=ocjfohfplnhpljgbibfijafohbeafgli",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-lggffllfgakbgoidkmommmnolhnfheke-profile_4",
+    "name": "CoinGlass | Crypto Market Data: Derivatives, Options, Spot, Order Flow, Liquidity & Order Depth, Liquidation Heatmaps",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=lggffllfgakbgoidkmommmnolhnfheke",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=lggffllfgakbgoidkmommmnolhnfheke",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-pglaijgopoecmdhokhahkamhlfdkdmcc-profile_4",
+    "name": "CoinGlass Legend",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=pglaijgopoecmdhokhahkamhlfdkdmcc",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=pglaijgopoecmdhokhahkamhlfdkdmcc",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-kde-discover",
+    "name": "Discover",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "plasma-discover",
+    "command": "plasma-discover",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-mpnpojknpmmopombnjdcgaaiekajbnjb-profile_4",
+    "name": "Docs",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=mpnpojknpmmopombnjdcgaaiekajbnjb",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=mpnpojknpmmopombnjdcgaaiekajbnjb",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-kde-dolphin",
+    "name": "Dolphin",
+    "icon": "📁",
+    "launchType": "app-command",
+    "target": "dolphin",
+    "command": "dolphin",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-odijhjgabocgmkkkldponjlkpmgakhpg-profile_4",
+    "name": "Freecash",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=odijhjgabocgmkkkldponjlkpmgakhpg",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=odijhjgabocgmkkkldponjlkpmgakhpg",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-fmgjjmmmlfnkbppncabfkddbjimcfncm-profile_4",
+    "name": "Gmail",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=fmgjjmmmlfnkbppncabfkddbjimcfncm",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=fmgjjmmmlfnkbppncabfkddbjimcfncm",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-kjbdgfilnfhdoflbpgamdcdgpehopbep-profile_4",
+    "name": "Google Calendar",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=kjbdgfilnfhdoflbpgamdcdgpehopbep",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=kjbdgfilnfhdoflbpgamdcdgpehopbep",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-bbcbahpbnakjldhdcgiblnjnfgaejidg-profile_4",
+    "name": "Google Voice",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=bbcbahpbnakjldhdcgiblnjnfgaejidg",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=bbcbahpbnakjldhdcgiblnjnfgaejidg",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-kde-kcalc",
+    "name": "KCalc",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "kcalc",
+    "command": "kcalc",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-kde-konsole",
+    "name": "Konsole",
+    "icon": "🖥️",
+    "launchType": "app-command",
+    "target": "konsole",
+    "command": "konsole",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "libreoffice-startcenter",
+    "name": "LibreOffice",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "libreoffice",
+    "command": "libreoffice",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-onlyoffice-desktopeditors",
+    "name": "ONLYOFFICE",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=desktopeditors --file-forwarding org.onlyoffice.desktopeditors @@u @@",
+    "command": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=desktopeditors --file-forwarding org.onlyoffice.desktopeditors @@u @@",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "chrome-jjbhjicbclaikpfdheopagapmpclomha-default",
+    "name": "OpenClaw Control",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "/opt/google/chrome/google-chrome --profile-directory=Default --app-id=jjbhjicbclaikpfdheopagapmpclomha",
+    "command": "/opt/google/chrome/google-chrome --profile-directory=Default --app-id=jjbhjicbclaikpfdheopagapmpclomha",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-kde-spectacle",
+    "name": "Spectacle",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "/usr/bin/spectacle",
+    "command": "/usr/bin/spectacle",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "steam",
+    "name": "Steam",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "/usr/games/steam",
+    "command": "/usr/games/steam",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "systemsettings",
+    "name": "System Settings",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "systemsettings",
+    "command": "systemsettings",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-gnkhpkeddcfffcmdaodnjdgjhnoepnnj-profile_4",
+    "name": "TradingView",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=gnkhpkeddcfffcmdaodnjdgjhnoepnnj",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=gnkhpkeddcfffcmdaodnjdgjhnoepnnj",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "com-tradingview-tradingview",
+    "name": "TradingView",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=tradingview --file-forwarding com.tradingview.tradingview @@u @@",
+    "command": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=tradingview --file-forwarding com.tradingview.tradingview @@u @@",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "org-chromium-chromium-flextop-chrome-pnfhabjkeankfcbicdchoiknehelnafa-profile_4",
+    "name": "Twitch",
+    "icon": "🌐",
+    "launchType": "app-command",
+    "target": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=pnfhabjkeankfcbicdchoiknehelnafa",
+    "command": "flatpak run --command=/app/bin/chromium org.chromium.Chromium --profile-directory=Profile 4 --app-id=pnfhabjkeankfcbicdchoiknehelnafa",
+    "mode": "command",
+    "type": "native-command"
+  },
+  {
+    "id": "com-vscodium-codium-insiders",
+    "name": "VSCodium - Insiders",
+    "icon": "🧩",
+    "launchType": "app-command",
+    "target": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=com.vscodium.codium-insiders --file-forwarding com.vscodium.codium-insiders @@ @@",
+    "command": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=com.vscodium.codium-insiders --file-forwarding com.vscodium.codium-insiders @@ @@",
+    "mode": "command",
+    "type": "native-command"
+  }
+]

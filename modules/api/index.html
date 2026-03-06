@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>API Settings</title>
+  <style>
+    body {
+      background: #1e1e1e;
+      color: #eee;
+      font-family: sans-serif;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    h1 {
+      margin-bottom: 16px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+    p {
+      margin: 0 0 10px;
+    }
+    .panel {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      color: #ccc;
+    }
+    .secret-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    input[type="password"],
+    input[type="text"] {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #1b1b1b;
+      color: #eee;
+      font-size: 14px;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4fc3f7;
+      box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.2);
+    }
+    .actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 9px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s ease;
+    }
+    .btn.primary {
+      background: #2e7dff;
+      color: #fff;
+    }
+    .btn.primary:hover {
+      background: #1f5dcc;
+    }
+    .btn.secondary {
+      background: #2c2c2c;
+      color: #ccc;
+    }
+    .btn.secondary:hover {
+      background: #3a3a3a;
+    }
+    .status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #a0a0a0;
+    }
+    .status.success {
+      color: #81c784;
+    }
+    .status.error {
+      color: #ef9a9a;
+    }
+    .status.warn {
+      color: #ffcc80;
+    }
+    .link-box {
+      margin-top: 10px;
+      padding: 15px;
+      background: #161616;
+      border: 1px solid #292929;
+      border-radius: 6px;
+    }
+    .link-box p {
+      margin: 6px 0;
+    }
+    a {
+      color: #7be0bb;
+      text-decoration: underline;
+    }
+    a:hover {
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>API Configuration</h1>
+
+  <section class="panel">
+    <h2>OpenAI API Key</h2>
+    <p>Store your key locally so OpenClaw Hub can call the OpenAI APIs on your behalf.</p>
+    <label for="openai-key-input">Secret key</label>
+    <div class="secret-row">
+      <input
+        id="openai-key-input"
+        type="password"
+        placeholder="sk-..."
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button type="button" class="btn secondary" id="toggle-openai-key">Show</button>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="save-openai-key">Save Key</button>
+      <button type="button" class="btn secondary" id="clear-openai-key">Remove</button>
+    </div>
+    <p class="status" id="openai-status">Loading current key.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Helpful Links</h2>
+    <div class="link-box">
+      <p>[OpenAI]</p>
+      <p>
+        <a href="https://platform.openai.com/account/api-keys" target="_blank" rel="noreferrer">
+          Manage OpenAI API keys
+        </a>
+      </p>
+    </div>
+    <div class="link-box">
+      <p>[Google]</p>
+      <p>
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
+          Google Cloud Console - Credentials
+        </a>
+      </p>
+    </div>
+    <div class="link-box">
+      <p>[Other APIs]</p>
+      <p>Weather, news, and custom integrations can be added later.</p>
+    </div>
+  </section>
+
+  <script>
+    const attachBridge = () => {
+      if (!window.commandDeskBridge && window.parent && window.parent.commandDeskBridge) {
+        window.commandDeskBridge = window.parent.commandDeskBridge;
+      }
+      if (!window.commandDeskInvoke && window.parent && typeof window.parent.commandDeskInvoke === "function") {
+        window.commandDeskInvoke = window.parent.commandDeskInvoke;
+      }
+      if (!window.commandDeskInvoke && window.top && typeof window.top.commandDeskInvoke === "function") {
+        window.commandDeskInvoke = window.top.commandDeskInvoke;
+      }
+    };
+
+    attachBridge();
+    window.addEventListener("message", event => {
+      if (event?.data?.bridgeReady) {
+        attachBridge();
+      }
+    });
+  </script>
+  <script type="module" src="api.js"></script>
+</body>
+</html>
