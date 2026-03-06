@@ -2,9 +2,7 @@
 
 Welcome to the OpenClaw Hub, a local, desktop-based dashboard for managing AI agents, projects, and data streams. Built with Electron, this application serves as a personal command center for interacting with various AI tools and services in a unified interface.
 
-![OpenClaw Hub Screenshot](https://i.imgur.com/your-screenshot-url.png)  
-*(Note: You can replace this with a real screenshot URL after you upload one.)*
-
+<blockquote class="imgur-embed-pub" lang="en" data-id="a/QI3KyW8" data-context="false" ><a href="//imgur.com/a/QI3KyW8"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
 ## ✨ Features
 
 - **Modular Interface:** A tab-based system for organizing different tools and views.
