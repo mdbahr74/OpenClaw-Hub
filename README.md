@@ -18,6 +18,14 @@ This project is currently in the **alpha stage**. The core framework is in place
 
 This is a community-driven project, and we're actively looking for ideas and contributions! If you have suggestions for new modules, integrations, UI/UX improvements, or any other features, please **open an issue** on this repository to share your thoughts.
 
+## 📸 Screenshots
+
+Here's a look at the current interface:
+
+| Main Dashboard | API & Settings | Chat History |
+| :---: | :---: | :---: |
+| ![Main Dashboard](https://i.imgur.com/lmj9MUv.png) | ![API & Settings](https://i.imgur.com/WgJ4cF1.png) | ![Chat History](https://i.imgur.com/UZaaGXx.png) |
+
 ## 🔧 Getting Started
 
 *(Instructions to be added soon...)*
