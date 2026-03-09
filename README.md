@@ -1,8 +1,10 @@
-<img width="2078" height="1114" alt="Screenshot_20260306_145543" src="https://github.com/user-attachments/assets/902e4a62-2848-4637-b1b7-7bcebdd8cc0e" />
-<img width="2078" height="1114" alt="Screenshot_20260306_145615" src="https://github.com/user-attachments/assets/b44123d1-fae4-4dcf-9a03-bb2345e86a2a" />
-<img width="2078" height="1114" alt="Screenshot_20260306_145633" src="https://github.com/user-attachments/assets/8a9128b6-0280-4b64-8215-005ebaf4a335" />
+<img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/60bf7674-6811-4aa3-9342-5ab35f89c68f" />
 
+<img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/db3e0c72-e160-4b4d-a68c-1b37b2f1d4c3" />
 
+<img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/fd8c1dec-4069-4448-b415-fb971c308dab" />
+
+<img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/52c210f8-8f01-4bcc-9cde-a435a6d4254c" />
 
 # OpenClaw Hub
 
