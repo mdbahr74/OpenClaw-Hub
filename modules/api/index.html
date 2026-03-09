@@ -139,6 +139,32 @@
   </section>
 
   <section class="panel">
+    <h2>Google Account</h2>
+    <p>Use a Google OAuth desktop client ID. Gmail, Calendar, and long-term memory sync will use this same sign-in.</p>
+    <label for="google-client-id-input">OAuth Client ID</label>
+    <div class="secret-row">
+      <input
+        id="google-client-id-input"
+        type="text"
+        placeholder="1234567890-abcdef.apps.googleusercontent.com"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="save-google-client-id">Save Client ID</button>
+      <button type="button" class="btn secondary" id="clear-google-client-id">Remove</button>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="connect-google">Connect Google</button>
+      <button type="button" class="btn secondary" id="disconnect-google">Disconnect</button>
+    </div>
+    <p class="status" id="google-status">Loading Google auth status.</p>
+    <p class="status" id="google-memory-mode">Memory backend: local</p>
+    <p class="status">Use an OAuth 2.0 Client ID created as a Desktop app. Do not paste an API key or client secret.</p>
+  </section>
+
+  <section class="panel">
     <h2>Helpful Links</h2>
     <div class="link-box">
       <p>[OpenAI]</p>

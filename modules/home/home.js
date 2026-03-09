@@ -1448,7 +1448,12 @@ async function loadGmailSnapshot() {
   }
   try {
     const snap = await invoker("google:gmailPrimarySnapshot", null);
-    const { unread = 0, messages = [] } = snap || {};
+    const { unread = 0, messages = [], authRequired = false, message = "" } = snap || {};
+    if (authRequired) {
+      gmailUnread.textContent = "↗";
+      gmailList.innerHTML = `<li class="notif-empty">${message || "Connect Google in the API tab."}</li>`;
+      return;
+    }
     gmailUnread.textContent = unread;
     if (!messages.length) {
       gmailList.innerHTML = `<li class="notif-empty">Inbox clear ✓</li>`;
@@ -1478,7 +1483,12 @@ async function loadCalendarSnapshot() {
   }
   try {
     const snap = await invoker("google:calendarSnapshot", null);
-    const { today = [], upcoming = null } = snap || {};
+    const { today = [], upcoming = null, authRequired = false, message = "" } = snap || {};
+    if (authRequired) {
+      calendarList.innerHTML = `<li class="notif-empty">${message || "Connect Google in the API tab."}</li>`;
+      calendarNext.textContent = "Google not connected";
+      return;
+    }
     if (!today.length && !upcoming) {
       calendarList.innerHTML = `<li class="notif-empty">No events today</li>`;
     } else {

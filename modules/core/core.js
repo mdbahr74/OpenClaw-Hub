@@ -273,7 +273,15 @@ async function loadGmailSnapshot() {
 
   try {
     const snapshot = await invoker("google:gmailPrimarySnapshot", null);
-    const { unread = 0, messages = [] } = snapshot || {};
+    const { unread = 0, messages = [], authRequired = false, message = "" } = snapshot || {};
+
+    if (authRequired) {
+      gmailUnread.textContent = "Unread: --";
+      const li = document.createElement("li");
+      li.textContent = message || "Connect Google in the API tab.";
+      gmailList.appendChild(li);
+      return;
+    }
 
     gmailUnread.textContent = `Unread: ${unread}`;
 
@@ -312,7 +320,15 @@ async function loadCalendarSnapshot() {
 
   try {
     const snapshot = await invoker("google:calendarSnapshot", null);
-    const { today = [], upcoming = null } = snapshot || {};
+    const { today = [], upcoming = null, authRequired = false, message = "" } = snapshot || {};
+
+    if (authRequired) {
+      const li = document.createElement("li");
+      li.textContent = message || "Connect Google in the API tab.";
+      calendarToday.appendChild(li);
+      calendarNext.textContent = "Next: --";
+      return;
+    }
 
     if (!today.length) {
       const li = document.createElement("li");

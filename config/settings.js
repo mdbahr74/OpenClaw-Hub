@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const settingsFile = path.join(__dirname, "settings.json");
+const legacyGoogleOAuthFile = path.join(path.dirname(__dirname), "google_oauth.json");
 
 async function ensureDirectory() {
   await fs.mkdir(__dirname, { recursive: true });
@@ -33,6 +34,79 @@ export async function saveSettings(settings) {
 export async function getOpenAIKey() {
   const settings = await loadSettings();
   return typeof settings.openaiKey === "string" ? settings.openaiKey : null;
+}
+
+async function loadLegacyGoogleOAuthCredentials() {
+  try {
+    const raw = await fs.readFile(legacyGoogleOAuthFile, "utf8");
+    const parsed = JSON.parse(raw);
+    const installed = parsed && typeof parsed === "object" ? parsed.installed : null;
+    return installed && typeof installed === "object" ? installed : null;
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.warn("Error loading legacy google_oauth.json:", err);
+    }
+    return null;
+  }
+}
+
+export async function getGoogleClientId() {
+  const settings = await loadSettings();
+  const fromSettings = typeof settings.googleClientId === "string" ? settings.googleClientId.trim() : "";
+  const fromEnv = typeof process.env.GOOGLE_CLIENT_ID === "string" ? process.env.GOOGLE_CLIENT_ID.trim() : "";
+  const legacy = await loadLegacyGoogleOAuthCredentials();
+  const fromLegacy = typeof legacy?.client_id === "string" ? legacy.client_id.trim() : "";
+  return fromSettings || fromEnv || fromLegacy || null;
+}
+
+export async function getGoogleClientSecret() {
+  const settings = await loadSettings();
+  const fromSettings = typeof settings.googleClientSecret === "string" ? settings.googleClientSecret.trim() : "";
+  const fromEnv = typeof process.env.GOOGLE_CLIENT_SECRET === "string" ? process.env.GOOGLE_CLIENT_SECRET.trim() : "";
+  const legacy = await loadLegacyGoogleOAuthCredentials();
+  const fromLegacy = typeof legacy?.client_secret === "string" ? legacy.client_secret.trim() : "";
+  return fromSettings || fromEnv || fromLegacy || null;
+}
+
+export async function setGoogleClientId(clientId) {
+  const trimmed = typeof clientId === "string" ? clientId.trim() : "";
+  const settings = await loadSettings();
+
+  if (trimmed) {
+    settings.googleClientId = trimmed;
+  } else {
+    delete settings.googleClientId;
+  }
+
+  await saveSettings(settings);
+  return getGoogleClientId();
+}
+
+export async function getGoogleTokens() {
+  const settings = await loadSettings();
+  return settings.googleTokens && typeof settings.googleTokens === "object"
+    ? settings.googleTokens
+    : null;
+}
+
+export async function setGoogleTokens(tokens) {
+  const settings = await loadSettings();
+
+  if (tokens && typeof tokens === "object") {
+    settings.googleTokens = tokens;
+  } else {
+    delete settings.googleTokens;
+  }
+
+  await saveSettings(settings);
+  return getGoogleTokens();
+}
+
+export async function clearGoogleTokens() {
+  const settings = await loadSettings();
+  delete settings.googleTokens;
+  await saveSettings(settings);
+  return null;
 }
 
 export async function getChromiumConfig() {

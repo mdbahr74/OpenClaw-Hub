@@ -164,8 +164,15 @@ export async function probeGatewayConnection({ agentId = DEFAULT_AGENT, timeoutM
  *   conversationId?: string     // optional, used to stabilize sessions
  *   session?: string            // optional explicit session key
  *   agentId?: string            // optional target agent id (defaults to main)
+ *   contextMessages?: Array     // optional system/developer messages prepended before the user turn
  */
-export async function sendChatThroughGateway({ text, conversationId = null, session = DEFAULT_SESSION, agentId = DEFAULT_AGENT }) {
+export async function sendChatThroughGateway({
+  text,
+  conversationId = null,
+  session = DEFAULT_SESSION,
+  agentId = DEFAULT_AGENT,
+  contextMessages = []
+}) {
   if (typeof text !== "string" || !text.trim()) {
     throw new Error("Message is empty.");
   }
@@ -182,24 +189,23 @@ export async function sendChatThroughGateway({ text, conversationId = null, sess
 
   const endpoint = new URL("/v1/chat/completions", url).toString();
 
+  const agentKey = agentId || DEFAULT_AGENT;
+  const sessionKey = session || (conversationId ? `agent:${agentKey}:commanddesk:${conversationId}` : `agent:${agentKey}:commanddesk`);
+  
   const headers = {
     "Authorization": `Bearer ${token}`,
     "Content-Type": "application/json",
-    "x-openclaw-agent-id": agentId || DEFAULT_AGENT
+    "x-openclaw-agent-id": agentId || DEFAULT_AGENT,
+    "x-openclaw-session-key": sessionKey,
+    "x-openclaw-message-channel": "webchat"
   };
-
-  // Option A: use explicit session header if provided
-  // Option B: fall back to a stable session derived from conversationId
-  //           so multi-turn chats stay coherent.
-  const agentKey = agentId || DEFAULT_AGENT;
-  const sessionKey = session || (conversationId ? `agent:${agentKey}:commanddesk:${conversationId}` : `agent:${agentKey}:commanddesk`);
-  headers["x-openclaw-session-key"] = sessionKey;
 
   const body = {
     model: "openclaw",
     // Also provide an OpenAI-style user tag for extra stability.
     user: conversationId ? `commanddesk:${conversationId}` : "commanddesk:matt",
     messages: [
+      ...(Array.isArray(contextMessages) ? contextMessages.filter(message => message && typeof message === "object") : []),
       { role: "user", content: text.trim() }
     ]
   };

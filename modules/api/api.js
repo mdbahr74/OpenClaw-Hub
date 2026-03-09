@@ -2,7 +2,15 @@ const keyInput = document.getElementById("openai-key-input");
 const toggleButton = document.getElementById("toggle-openai-key");
 const saveButton = document.getElementById("save-openai-key");
 const clearButton = document.getElementById("clear-openai-key");
-const statusText = document.getElementById("openai-status");
+const openAIStatusText = document.getElementById("openai-status");
+
+const googleClientIdInput = document.getElementById("google-client-id-input");
+const saveGoogleClientIdButton = document.getElementById("save-google-client-id");
+const clearGoogleClientIdButton = document.getElementById("clear-google-client-id");
+const connectGoogleButton = document.getElementById("connect-google");
+const disconnectGoogleButton = document.getElementById("disconnect-google");
+const googleStatusText = document.getElementById("google-status");
+const googleMemoryModeText = document.getElementById("google-memory-mode");
 
 const CHANNEL = "commanddesk:bridge";
 const REQUEST_TIMEOUT = 4000;
@@ -18,8 +26,7 @@ const candidateFactories = [
       typeof window.commandDeskInvoke === "function"
         ? {
             source: "window.commandDeskInvoke",
-            getOpenAIKey: () => window.commandDeskInvoke("config:getOpenAIKey"),
-            setOpenAIKey: value => window.commandDeskInvoke("config:setOpenAIKey", value)
+            invoke: (channel, payload) => window.commandDeskInvoke(channel, payload)
           }
         : null
   },
@@ -29,30 +36,27 @@ const candidateFactories = [
       window.api && typeof window.api.invoke === "function"
         ? {
             source: "window.api",
-            getOpenAIKey: () => window.api.invoke("config:getOpenAIKey"),
-            setOpenAIKey: value => window.api.invoke("config:setOpenAIKey", value)
+            invoke: (channel, payload) => window.api.invoke(channel, payload)
           }
         : null
   },
   {
     label: "window.commandDeskBridge",
     factory: () =>
-      window.commandDeskBridge && typeof window.commandDeskBridge.getOpenAIKey === "function"
+      window.commandDeskBridge && typeof window.commandDeskBridge.invoke === "function"
         ? {
             source: "window.commandDeskBridge",
-            getOpenAIKey: () => window.commandDeskBridge.getOpenAIKey(),
-            setOpenAIKey: value => window.commandDeskBridge.setOpenAIKey(value)
+            invoke: (channel, payload) => window.commandDeskBridge.invoke(channel, payload)
           }
         : null
   },
   {
     label: "window.electronAPI",
     factory: () =>
-      window.electronAPI && typeof window.electronAPI.getOpenAIKey === "function"
+      window.electronAPI && typeof window.electronAPI.invoke === "function"
         ? {
             source: "window.electronAPI",
-            getOpenAIKey: () => window.electronAPI.getOpenAIKey(),
-            setOpenAIKey: value => window.electronAPI.setOpenAIKey(value)
+            invoke: (channel, payload) => window.electronAPI.invoke(channel, payload)
           }
         : null
   },
@@ -62,8 +66,7 @@ const candidateFactories = [
       window.parent && window.parent !== window && typeof window.parent.commandDeskInvoke === "function"
         ? {
             source: "parent.commandDeskInvoke",
-            getOpenAIKey: () => window.parent.commandDeskInvoke("config:getOpenAIKey"),
-            setOpenAIKey: value => window.parent.commandDeskInvoke("config:setOpenAIKey", value)
+            invoke: (channel, payload) => window.parent.commandDeskInvoke(channel, payload)
           }
         : null
   },
@@ -73,8 +76,7 @@ const candidateFactories = [
       window.parent && window.parent !== window && window.parent.api && typeof window.parent.api.invoke === "function"
         ? {
             source: "parent.api",
-            getOpenAIKey: () => window.parent.api.invoke("config:getOpenAIKey"),
-            setOpenAIKey: value => window.parent.api.invoke("config:setOpenAIKey", value)
+            invoke: (channel, payload) => window.parent.api.invoke(channel, payload)
           }
         : null
   },
@@ -84,8 +86,7 @@ const candidateFactories = [
       window.top && window.top !== window && typeof window.top.commandDeskInvoke === "function"
         ? {
             source: "top.commandDeskInvoke",
-            getOpenAIKey: () => window.top.commandDeskInvoke("config:getOpenAIKey"),
-            setOpenAIKey: value => window.top.commandDeskInvoke("config:setOpenAIKey", value)
+            invoke: (channel, payload) => window.top.commandDeskInvoke(channel, payload)
           }
         : null
   },
@@ -95,27 +96,28 @@ const candidateFactories = [
       window.top && window.top !== window && window.top.api && typeof window.top.api.invoke === "function"
         ? {
             source: "top.api",
-            getOpenAIKey: () => window.top.api.invoke("config:getOpenAIKey"),
-            setOpenAIKey: value => window.top.api.invoke("config:setOpenAIKey", value)
+            invoke: (channel, payload) => window.top.api.invoke(channel, payload)
           }
         : null
   }
 ];
 
-function setStatus(message, variant = "info") {
-  if (!statusText) {
+function withBridgeSuffix(message, variant) {
+  if (bridgeSource === "none" || variant === "error") {
+    return message;
+  }
+  return `${message} (bridge: ${bridgeSource})`;
+}
+
+function setStatus(element, message, variant = "info") {
+  if (!element) {
     return;
   }
 
-  const suffix = bridgeSource !== "none" && variant !== "error"
-    ? ` (bridge: ${bridgeSource})`
-    : "";
-
-  statusText.textContent = `${message}${suffix}`;
-  statusText.classList.remove("success", "error", "warn");
-
+  element.textContent = withBridgeSuffix(message, variant);
+  element.classList.remove("success", "error", "warn");
   if (variant !== "info") {
-    statusText.classList.add(variant);
+    element.classList.add(variant);
   }
 }
 
@@ -123,7 +125,7 @@ function resolveBridge() {
   for (const candidate of candidateFactories) {
     try {
       const bridge = candidate.factory();
-      if (bridge) {
+      if (bridge && typeof bridge.invoke === "function") {
         bridgeSource = candidate.label;
         return bridge;
       }
@@ -145,65 +147,70 @@ function createMessenger() {
   }
 
   const parentWindow = window.parent;
-  const callParent = (method, payload) =>
-    new Promise((resolve, reject) => {
-      const requestId = `cmd-${Date.now()}-${Math.random()
-        .toString(16)
-        .slice(2)}`;
+  bridgeSource = "messenger";
 
-      let timeoutId;
+  return {
+    source: bridgeSource,
+    invoke(channel, payload) {
+      return new Promise((resolve, reject) => {
+        const requestId = `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        let timeoutId;
 
-      const listener = event => {
-        const data = event.data;
-        if (!data || data.channel !== CHANNEL || data.requestId !== requestId) {
+        const listener = event => {
+          const data = event.data;
+          if (!data || data.channel !== CHANNEL || data.requestId !== requestId) {
+            return;
+          }
+
+          cleanup();
+          if (data.success) {
+            resolve(data.result);
+          } else {
+            reject(new Error(data.error || "Bridge error"));
+          }
+        };
+
+        const cleanup = () => {
+          window.removeEventListener("message", listener);
+          if (typeof timeoutId === "number") {
+            clearTimeout(timeoutId);
+          }
+        };
+
+        window.addEventListener("message", listener);
+
+        try {
+          parentWindow.postMessage(
+            {
+              channel: CHANNEL,
+              method: channel,
+              payload,
+              requestId
+            },
+            "*"
+          );
+        } catch (err) {
+          cleanup();
+          reject(err);
           return;
         }
-
-        cleanup();
-
-        if (data.success) {
-          resolve(data.result);
-        } else {
-          reject(new Error(data.error || "Bridge error"));
-        }
-      };
-
-      const cleanup = () => {
-        window.removeEventListener("message", listener);
-        if (typeof timeoutId === "number") {
-          clearTimeout(timeoutId);
-        }
-      };
-
-      window.addEventListener("message", listener);
-
-      try {
-        parentWindow.postMessage(
-          {
-            channel: CHANNEL,
-            method,
-            payload,
-            requestId
-          },
-          "*"
-        );
 
         timeoutId = setTimeout(() => {
           cleanup();
           reject(new Error("Timeout waiting for parent bridge"));
         }, REQUEST_TIMEOUT);
-      } catch (err) {
-        cleanup();
-        reject(err);
-      }
-    });
-
-  bridgeSource = "messenger";
-  return {
-    source: bridgeSource,
-    getOpenAIKey: () => callParent("config:getOpenAIKey"),
-    setOpenAIKey: value => callParent("config:setOpenAIKey", value)
+      });
+    }
   };
+}
+
+async function invokeBridge(channel, payload) {
+  bridgeSource = "none";
+  const bridge = resolveBridge();
+  if (!bridge || typeof bridge.invoke !== "function") {
+    throw new Error("Settings bridge unavailable.");
+  }
+  return await bridge.invoke(channel, payload);
 }
 
 function toggleVisibility() {
@@ -216,26 +223,22 @@ function toggleVisibility() {
   toggleButton.textContent = revealSecret ? "Hide" : "Show";
 }
 
+function isPlausibleGoogleClientId(value) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return /^[0-9]+-[a-z0-9._-]+\.apps\.googleusercontent\.com$/i.test(trimmed);
+}
+
 async function loadStoredKey() {
-  bridgeSource = "none";
-  const bridge = resolveBridge();
-
-  if (!bridge || typeof bridge.getOpenAIKey !== "function") {
-    setStatus("Waiting for settings bridge…", "warn");
-    setTimeout(loadStoredKey, 1000);
-    return;
-  }
-
   try {
-    const key = await bridge.getOpenAIKey();
+    const key = await invokeBridge("config:getOpenAIKey");
     if (key && keyInput) {
       keyInput.value = key;
-      setStatus("Stored key loaded. Keep it safe!", "success");
+      setStatus(openAIStatusText, "Stored key loaded. Keep it safe!", "success");
     } else {
-      setStatus("No key saved yet. Paste one above to get started.");
+      setStatus(openAIStatusText, "No key saved yet. Paste one above to get started.");
     }
   } catch (err) {
-    setStatus(`Unable to load key: ${err.message}`, "error");
+    setStatus(openAIStatusText, `Unable to load key: ${err.message}`, "error");
   }
 }
 
@@ -246,45 +249,131 @@ async function saveKey() {
 
   const value = keyInput.value.trim();
   if (!value) {
-    setStatus("Enter a key before saving.", "warn");
+    setStatus(openAIStatusText, "Enter a key before saving.", "warn");
     return;
   }
 
   try {
-    const bridge = resolveBridge();
-    if (!bridge || typeof bridge.setOpenAIKey !== "function") {
-      throw new Error("Settings bridge unavailable.");
-    }
-
-    await bridge.setOpenAIKey(value);
-    setStatus("OpenAI key saved locally.", "success");
+    await invokeBridge("config:setOpenAIKey", value);
+    setStatus(openAIStatusText, "OpenAI key saved locally.", "success");
   } catch (err) {
-    setStatus(`Could not save key: ${err.message}`, "error");
+    setStatus(openAIStatusText, `Could not save key: ${err.message}`, "error");
   }
 }
 
 async function clearKey() {
   try {
-    const bridge = resolveBridge();
-    if (!bridge || typeof bridge.setOpenAIKey !== "function") {
-      throw new Error("Settings bridge unavailable.");
-    }
-
-    await bridge.setOpenAIKey("");
-
+    await invokeBridge("config:setOpenAIKey", "");
     if (keyInput) {
       keyInput.value = "";
-      revealSecret = false;
       keyInput.type = "password";
     }
-
+    revealSecret = false;
     if (toggleButton) {
       toggleButton.textContent = "Show";
     }
-
-    setStatus("OpenAI key removed.", "success");
+    setStatus(openAIStatusText, "OpenAI key removed.", "success");
   } catch (err) {
-    setStatus(`Could not remove key: ${err.message}`, "error");
+    setStatus(openAIStatusText, `Could not remove key: ${err.message}`, "error");
+  }
+}
+
+function renderGoogleStatus(status) {
+  if (googleClientIdInput && typeof status?.clientId === "string") {
+    googleClientIdInput.value = status.clientId;
+  }
+
+  if (!status?.configured) {
+    setStatus(googleStatusText, "Save a Google OAuth desktop client ID to enable Google integrations.", "warn");
+  } else if (status.connected) {
+    const label = status.accountEmail || status.accountName || "Google account connected";
+    const expires = status.expiresAt ? ` Token refresh ready until ${new Date(status.expiresAt).toLocaleString()}.` : "";
+    setStatus(googleStatusText, `${label} connected.${expires}`, "success");
+  } else {
+    setStatus(googleStatusText, "Client ID saved. Connect Google to enable Gmail, Calendar, and memory sync.", "warn");
+  }
+
+  if (googleMemoryModeText) {
+    const label = status?.memoryBackend === "local+google-drive-appdata"
+      ? "Memory backend: local + Google Drive appData sync"
+      : "Memory backend: local";
+    googleMemoryModeText.textContent = label;
+  }
+
+  if (connectGoogleButton) {
+    connectGoogleButton.disabled = !status?.configured;
+  }
+
+  if (disconnectGoogleButton) {
+    disconnectGoogleButton.disabled = !status?.connected;
+  }
+}
+
+async function loadGoogleStatus() {
+  try {
+    const status = await invokeBridge("config:getGoogleAuthStatus");
+    renderGoogleStatus(status || {});
+  } catch (err) {
+    setStatus(googleStatusText, `Unable to load Google status: ${err.message}`, "error");
+  }
+}
+
+async function saveGoogleClientId() {
+  if (!googleClientIdInput) {
+    return;
+  }
+
+  const value = googleClientIdInput.value.trim();
+  if (!value) {
+    setStatus(googleStatusText, "Enter a Google OAuth client ID before saving.", "warn");
+    return;
+  }
+
+  if (!isPlausibleGoogleClientId(value)) {
+    setStatus(googleStatusText, "That does not look like a Google OAuth Desktop client ID. It should end with .apps.googleusercontent.com.", "error");
+    return;
+  }
+
+  try {
+    const result = await invokeBridge("config:setGoogleClientId", value);
+    renderGoogleStatus(result?.status || {});
+  } catch (err) {
+    setStatus(googleStatusText, `Could not save client ID: ${err.message}`, "error");
+  }
+}
+
+async function clearGoogleClientId() {
+  try {
+    const result = await invokeBridge("config:setGoogleClientId", "");
+    renderGoogleStatus(result?.status || {});
+  } catch (err) {
+    setStatus(googleStatusText, `Could not remove client ID: ${err.message}`, "error");
+  }
+}
+
+async function connectGoogle() {
+  const currentValue = googleClientIdInput?.value?.trim() || "";
+  if (!isPlausibleGoogleClientId(currentValue)) {
+    setStatus(googleStatusText, "Save a valid Google OAuth Desktop client ID before connecting.", "error");
+    return;
+  }
+
+  try {
+    await invokeBridge("config:setGoogleClientId", currentValue);
+    setStatus(googleStatusText, "Opening Google sign-in…");
+    const status = await invokeBridge("google:connect");
+    renderGoogleStatus(status || {});
+  } catch (err) {
+    setStatus(googleStatusText, `Google connect failed: ${err.message}`, "error");
+  }
+}
+
+async function disconnectGoogle() {
+  try {
+    const status = await invokeBridge("google:disconnect");
+    renderGoogleStatus(status || {});
+  } catch (err) {
+    setStatus(googleStatusText, `Google disconnect failed: ${err.message}`, "error");
   }
 }
 
@@ -308,7 +397,32 @@ if (keyInput) {
   });
 }
 
+if (saveGoogleClientIdButton) {
+  saveGoogleClientIdButton.addEventListener("click", saveGoogleClientId);
+}
+
+if (clearGoogleClientIdButton) {
+  clearGoogleClientIdButton.addEventListener("click", clearGoogleClientId);
+}
+
+if (connectGoogleButton) {
+  connectGoogleButton.addEventListener("click", connectGoogle);
+}
+
+if (disconnectGoogleButton) {
+  disconnectGoogleButton.addEventListener("click", disconnectGoogle);
+}
+
+if (googleClientIdInput) {
+  googleClientIdInput.addEventListener("keyup", event => {
+    if (event.key === "Enter") {
+      saveGoogleClientId();
+    }
+  });
+}
+
 loadStoredKey();
+loadGoogleStatus();
 
 window.addEventListener("message", event => {
   const data = event.data;
@@ -316,5 +430,8 @@ window.addEventListener("message", event => {
     return;
   }
 
-  setTimeout(loadStoredKey, 100);
+  setTimeout(() => {
+    loadStoredKey();
+    loadGoogleStatus();
+  }, 100);
 });

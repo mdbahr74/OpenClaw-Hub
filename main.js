@@ -1,12 +1,33 @@
 import { app, BrowserWindow, Notification, dialog, ipcMain, screen, session, shell } from "electron";
 import { spawn } from "child_process";
+import { createHash, randomBytes } from "crypto";
 import { promises as fs } from "fs";
+import { createServer } from "http";
 import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
-import { loadMemory, saveMemory } from "./memory/memory.js";
-import { getOpenAIKey, setOpenAIKey } from "./config/settings.js";
-import { listNextEvents } from "./googleAPI.js";
+import { loadMemory, mergeMemoryState, saveMemory } from "./memory/memory.js";
+import {
+  clearGoogleTokens,
+  getGoogleClientId,
+  getGoogleTokens,
+  getOpenAIKey,
+  loadSettings,
+  setGoogleClientId,
+  setOpenAIKey
+} from "./config/settings.js";
+import {
+  addCalendarEvent as addGoogleCalendarEvent,
+  buildGoogleAuthorizationUrl,
+  disconnectGoogleAccount,
+  exchangeGoogleAuthCode,
+  getCalendarSnapshot as getGoogleCalendarSnapshot,
+  getGmailPrimarySnapshot,
+  getGoogleAuthStatus,
+  getGoogleUserFacingError,
+  loadGoogleMemory,
+  saveGoogleMemory
+} from "./googleAPI.js";
 import {
   getGatewayConnectionStatus,
   probeGatewayConnection,
@@ -24,13 +45,16 @@ const DEFAULT_WEBAPP_WINDOW_BOUNDS = { width: 1220, height: 840 };
 const MIN_AUTO_COMMAND_APP_BOUNDS = { width: 700, height: 500 };
 const SHARED_WEBAPP_PARTITION = "persist:commanddesk-webapps";
 const APP_ID_URL_FALLBACKS = {
-  fmgjjmmmmlfnkbppncabfkddbjjmcfcm: "https://mail.google.com"
+  fmgjjmmmlfnkbppncabfkddbjimcfncm: "https://mail.google.com",
+  kjbdgfilnfhdoflbpgamdcdgpehopbep: "https://calendar.google.com",
+  mpnpojknpmmopombnjdcgaaiekajbnjb: "https://docs.google.com",
+  bbcbahpbnakjldhdcgiblnjnfgaejidg: "https://voice.google.com"
 };
 const projectConfig = {
   trading: {
     id: "trading",
     label: "Trading / Crypto",
-    agentId: "main",
+    agentId: "trading",
     notesPath: path.join(
       process.env.HOME || process.env.USERPROFILE || "",
       ".openclaw",
@@ -42,7 +66,7 @@ const projectConfig = {
   court: {
     id: "court",
     label: "Court / Legal",
-    agentId: "main",
+    agentId: "court",
     notesPath: path.join(
       process.env.HOME || process.env.USERPROFILE || "",
       ".openclaw",
@@ -55,7 +79,7 @@ const projectConfig = {
   coding: {
     id: "coding",
     label: "Coding / Dev",
-    agentId: "main",
+    agentId: "pine",
     notesPath: path.join(
       process.env.HOME || process.env.USERPROFILE || "",
       ".openclaw",
@@ -65,6 +89,16 @@ const projectConfig = {
     )
   }
 };
+const missionTaskSectionPattern = /open tasks|key issues|drafts & plans|todo|next steps|active tasks/i;
+const missionTaskMetadataPattern = /^(status|last_done|mode|promoted at|conversation id|started|created|updated|owner|priority)\s*:/i;
+const legalCaseStancePath = path.join(
+  process.env.HOME || process.env.USERPROFILE || "",
+  ".openclaw",
+  "workspace",
+  "projects",
+  "legal_custody",
+  "CASE_STANCE.md"
+);
 const webAppsConfigFile = path.join(dataDir, "webapps.json");
 const todayNotesFile = path.join(dataDir, "today_notes.json");
 const newsFeedsFile = path.join(dataDir, "news_feeds.json");
@@ -94,8 +128,960 @@ let installedAppsCacheLoadedAt = 0;
 let installedAppsCache = [];
 let openClawBootstrapAttempted = false;
 const chromiumAppTrackers = new Map();
+let googleAuthWindow = null;
+let googleAuthFlowPromise = null;
+const googleAuthRuntimeState = {
+  codeVerifier: null,
+  state: null,
+  redirectUri: null,
+  authorizeClientId: null,
+  tokenClientId: null,
+  savedClientId: null,
+  resolvedClientId: null,
+  lastDiagnostics: null
+};
 const useNoSandbox = process.platform === "linux"
   && String(process.env.OPENCLAW_USE_NO_SANDBOX || "1").trim() !== "0";
+
+const availableAgentConfig = [
+  { id: "main", label: "Hex / Main", configured: true },
+  { id: "court", label: "Court Agent", configured: false },
+  { id: "trading", label: "Trading Agent", configured: false },
+  { id: "pine", label: "Pine / Coding Agent", configured: false }
+];
+
+function listAvailableAgents() {
+  return availableAgentConfig.map(agent => ({ ...agent }));
+}
+
+function listMissionProjects() {
+  return Object.values(projectConfig).map(mode => ({
+    id: mode.id,
+    label: mode.label,
+    agentId: mode.agentId || "main",
+    notesPath: mode.notesPath
+  }));
+}
+
+function normalizeMissionTaskText(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .replace(/^\[[^\]]+\]\s*/, "")
+    .trim();
+}
+
+function parseTasksFromProjectNotes(raw, mode) {
+  if (!raw) {
+    return [];
+  }
+
+  const seen = new Set();
+  const tasks = [];
+  let currentSection = "";
+
+  const pushTask = (text, source) => {
+    const normalized = normalizeMissionTaskText(text);
+    if (!normalized || normalized === "-" || normalized.startsWith("<!--")) {
+      return;
+    }
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    tasks.push({ mode, text: normalized, source });
+  };
+
+  for (const rawLine of String(raw).split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      currentSection = headingMatch[1].trim();
+      continue;
+    }
+
+    const checkboxMatch = trimmed.match(/^[-*]\s*\[( |x|X)\]\s+(.+)$/);
+    if (checkboxMatch) {
+      if (checkboxMatch[1] === " ") {
+        pushTask(checkboxMatch[2], "checkbox");
+      }
+      continue;
+    }
+
+    const nextStepMatch = trimmed.match(/^-+\s*next_step:\s*(.+)$/i);
+    if (nextStepMatch) {
+      pushTask(nextStepMatch[1], "next_step");
+      continue;
+    }
+
+    if (!missionTaskSectionPattern.test(currentSection)) {
+      continue;
+    }
+
+    const bulletMatch = trimmed.match(/^-\s+(.+)$/);
+    if (!bulletMatch) {
+      continue;
+    }
+
+    const value = bulletMatch[1].trim();
+    if (!value || missionTaskMetadataPattern.test(value)) {
+      continue;
+    }
+
+    pushTask(value, "section");
+  }
+
+  return tasks;
+}
+
+function buildMissionNotesPreview(raw, limit = 6) {
+  if (!raw) {
+    return [];
+  }
+
+  const preview = [];
+  for (const rawLine of String(raw).split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed === "-" || trimmed.startsWith("<!--")) {
+      continue;
+    }
+    if (/^##\s+Promoted conversation/i.test(trimmed)) {
+      break;
+    }
+    preview.push(trimmed.replace(/^#{1,6}\s*/, ""));
+    if (preview.length >= limit) {
+      break;
+    }
+  }
+
+  return preview;
+}
+
+function extractPromotedConversationEntries(raw, limit = Number.MAX_SAFE_INTEGER) {
+  if (!raw) {
+    return [];
+  }
+
+  const entries = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (!current?.title) {
+      current = null;
+      return;
+    }
+    entries.push(current);
+    current = null;
+  };
+
+  for (const rawLine of String(raw).split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    const headingMatch = trimmed.match(/^##\s+Promoted conversation\s+[–-]\s+(.+)$/i);
+    if (headingMatch?.[1]) {
+      pushCurrent();
+      current = {
+        title: headingMatch[1].trim(),
+        promotedAt: null,
+        conversationId: null,
+        startedAt: null
+      };
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    const promotedAtMatch = trimmed.match(/^-+\s*Promoted at:\s*(.+)$/i);
+    if (promotedAtMatch?.[1]) {
+      current.promotedAt = promotedAtMatch[1].trim();
+      continue;
+    }
+
+    const conversationIdMatch = trimmed.match(/^-+\s*Conversation id:\s*(.+)$/i);
+    if (conversationIdMatch?.[1]) {
+      current.conversationId = conversationIdMatch[1].trim();
+      continue;
+    }
+
+    const startedMatch = trimmed.match(/^-+\s*Started:\s*(.+)$/i);
+    if (startedMatch?.[1]) {
+      current.startedAt = startedMatch[1].trim();
+    }
+  }
+
+  pushCurrent();
+
+  const ordered = entries.reverse();
+  if (Number.isFinite(limit)) {
+    return ordered.slice(0, Math.max(0, Number(limit) || 0));
+  }
+  return ordered;
+}
+
+async function readMissionProjectSummary(project) {
+  const summary = {
+    id: project.id,
+    label: project.label,
+    agentId: project.agentId || "main",
+    notesPath: project.notesPath,
+    notesExists: false,
+    updatedAt: null,
+    openTasks: [],
+    promotedConversationCount: 0,
+    recentPromotions: [],
+    recentDocs: [],
+    previewLines: []
+  };
+
+  try {
+    const [raw, stat] = await Promise.all([
+      fs.readFile(project.notesPath, "utf8"),
+      fs.stat(project.notesPath)
+    ]);
+
+    summary.notesExists = true;
+    summary.updatedAt = stat?.mtime ? stat.mtime.toISOString() : null;
+    summary.openTasks = parseTasksFromProjectNotes(raw, project.id);
+
+    const promotions = extractPromotedConversationEntries(raw);
+    summary.promotedConversationCount = promotions.length;
+    summary.recentPromotions = promotions.slice(0, 3).map(item => item.title);
+    summary.recentDocs = promotions.slice(0, 6);
+    summary.previewLines = buildMissionNotesPreview(raw, 6);
+  } catch (err) {
+    if (err?.code !== "ENOENT") {
+      console.warn("[MissionControl] Failed reading project notes", project.notesPath, err?.message || err);
+    }
+  }
+
+  return summary;
+}
+
+async function loadMissionWorkspaceSummary() {
+  const projects = await Promise.all(listMissionProjects().map(project => readMissionProjectSummary(project)));
+
+  const recentDocs = projects
+    .flatMap(project => (project.recentDocs || []).map(doc => ({
+      ...doc,
+      projectId: project.id,
+      projectLabel: project.label,
+      notesPath: project.notesPath
+    })))
+    .sort((a, b) => {
+      const aTime = Date.parse(String(a?.promotedAt || "")) || 0;
+      const bTime = Date.parse(String(b?.promotedAt || "")) || 0;
+      return bTime - aTime;
+    })
+    .slice(0, 12);
+
+  return {
+    projects,
+    docs: {
+      recent: recentDocs
+    },
+    totals: {
+      projectCount: projects.length,
+      notesReadyCount: projects.filter(project => project.notesExists).length,
+      openTaskCount: projects.reduce((sum, project) => sum + (Array.isArray(project.openTasks) ? project.openTasks.length : 0), 0),
+      promotedConversationCount: projects.reduce((sum, project) => sum + (Number(project.promotedConversationCount) || 0), 0)
+    },
+    generatedAt: new Date().toISOString()
+  };
+}
+
+async function readMissionCronJobs() {
+  const home = process.env.HOME || process.env.USERPROFILE || "";
+  const cronDir = path.join(home, ".openclaw", "cron");
+  try {
+    const entries = await fs.readdir(cronDir, { withFileTypes: true });
+    const files = entries
+      .filter(entry => entry.isFile() && entry.name.endsWith(".json"))
+      .map(entry => entry.name);
+
+    const jobs = [];
+    for (const name of files) {
+      const file = path.join(cronDir, name);
+      try {
+        const raw = await fs.readFile(file, "utf8");
+        const json = JSON.parse(raw);
+        jobs.push({ file: name, ...json });
+      } catch {
+        jobs.push({ file: name, error: "unreadable" });
+      }
+    }
+
+    return { dir: cronDir, jobs };
+  } catch {
+    return { dir: cronDir, jobs: [] };
+  }
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseIsoDateMs(value) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function pickDurableMemoryState(localState, remoteState) {
+  const local = isPlainObject(localState) ? localState : {};
+  const remote = isPlainObject(remoteState) ? remoteState : {};
+
+  if (!Object.keys(remote).length) {
+    return local;
+  }
+
+  if (!Object.keys(local).length) {
+    return remote;
+  }
+
+  const localUpdatedAt = parseIsoDateMs(local.last_updated);
+  const remoteUpdatedAt = parseIsoDateMs(remote.last_updated);
+  return remoteUpdatedAt >= localUpdatedAt
+    ? mergeMemoryState(local, remote)
+    : mergeMemoryState(remote, local);
+}
+
+async function loadDurableMemory() {
+  const localState = loadMemory() || {};
+
+  try {
+    const authStatus = await getGoogleAuthStatus();
+    if (!authStatus.connected) {
+      return localState;
+    }
+
+    const remoteState = await loadGoogleMemory();
+    const mergedState = pickDurableMemoryState(localState, remoteState);
+    if (JSON.stringify(mergedState) !== JSON.stringify(localState)) {
+      saveMemory(mergedState);
+    }
+    return mergedState;
+  } catch (err) {
+    console.warn("[CommandDesk] Unable to sync Google memory into local cache", err?.message || err);
+    return localState;
+  }
+}
+
+async function saveDurableMemory(updates) {
+  const saved = saveMemory(isPlainObject(updates) ? updates : {});
+  if (!saved) {
+    throw new Error("Unable to persist memory state.");
+  }
+
+  try {
+    const authStatus = await getGoogleAuthStatus();
+    if (authStatus.connected) {
+      await saveGoogleMemory(saved);
+    }
+  } catch (err) {
+    console.warn("[CommandDesk] Unable to sync memory to Google Drive", err?.message || err);
+  }
+
+  return saved;
+}
+
+function collectMemoryLines(value, prefix, lines, limit = 18) {
+  if (lines.length >= limit || value == null) {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(item => {
+      if (lines.length >= limit) {
+        return;
+      }
+      if (item == null) {
+        return;
+      }
+      if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+        const text = String(item).trim();
+        if (text) {
+          lines.push(prefix ? `${prefix}: ${text}` : text);
+        }
+        return;
+      }
+      if (isPlainObject(item)) {
+        collectMemoryLines(item, prefix, lines, limit);
+      }
+    });
+    return;
+  }
+
+  if (isPlainObject(value)) {
+    Object.entries(value).forEach(([key, childValue]) => {
+      if (lines.length >= limit || key === "last_updated") {
+        return;
+      }
+      const nextPrefix = prefix ? `${prefix}.${key}` : key;
+      collectMemoryLines(childValue, nextPrefix, lines, limit);
+    });
+    return;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return;
+  }
+
+  lines.push(prefix ? `${prefix}: ${text}` : text);
+}
+
+function extractRelevantProjectLines(raw, limit = 18) {
+  return String(raw || "")
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .filter(line => !/^#/.test(line))
+    .filter(line => !/^```/.test(line))
+    .slice(0, limit);
+}
+
+async function synthesizeEdgeTts(text, options = {}) {
+  const normalizedText = typeof text === "string" ? text.trim() : "";
+  if (!normalizedText) {
+    throw new Error("Text is required for TTS.");
+  }
+
+  const scriptPath = path.join(os.homedir(), ".openclaw", "workspace", "skills", "edge-tts", "scripts", "tts-converter.js");
+  const workdir = path.dirname(scriptPath);
+  const voice = typeof options?.voice === "string" && options.voice.trim() ? options.voice.trim() : "en-US-MichelleNeural";
+  const rate = typeof options?.rate === "string" && options.rate.trim() ? options.rate.trim() : "default";
+
+  return await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath, normalizedText, "--voice", voice, "--rate", rate], {
+      cwd: workdir,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", chunk => {
+      stdout += String(chunk || "");
+    });
+
+    child.stderr.on("data", chunk => {
+      stderr += String(chunk || "");
+    });
+
+    child.on("error", err => reject(err));
+    child.on("close", code => {
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || stdout.trim() || `Edge TTS exited with code ${code}`));
+        return;
+      }
+      const match = stdout.match(/Audio saved to:\s*(.+)$/m);
+      if (!match?.[1]) {
+        reject(new Error("Edge TTS completed but did not report an output file."));
+        return;
+      }
+      resolve({ filePath: match[1].trim(), stdout, stderr });
+    });
+  });
+}
+
+async function extractAttachmentSnippet(filePath) {
+  const ext = path.extname(String(filePath || "")).toLowerCase();
+  const normalizedPath = String(filePath || "").trim();
+  if (!normalizedPath) {
+    return null;
+  }
+
+  try {
+    if ([".txt", ".md", ".json", ".csv", ".log", ".rtf"].includes(ext)) {
+      const raw = await fs.readFile(normalizedPath, "utf8");
+      const snippet = raw.replace(/\s+/g, " ").trim().slice(0, 4000);
+      return snippet || null;
+    }
+
+    if (ext === ".pdf") {
+      const snippet = await new Promise(resolve => {
+        const child = spawn("pdftotext", ["-f", "1", "-l", "3", "-layout", normalizedPath, "-"], {
+          stdio: ["ignore", "pipe", "ignore"]
+        });
+        let output = "";
+        child.stdout.on("data", chunk => {
+          output += String(chunk || "");
+          if (output.length > 5000) {
+            child.kill("SIGTERM");
+          }
+        });
+        child.on("error", () => resolve(null));
+        child.on("close", () => resolve(output.replace(/\s+/g, " ").trim().slice(0, 4000) || null));
+      });
+      return snippet;
+    }
+  } catch (err) {
+    console.warn("[CommandDesk] Failed reading attachment snippet", normalizedPath, err?.message || err);
+  }
+
+  return null;
+}
+
+async function buildProjectContextMessages({ modeId, projectLabel, notesPath, agentId }) {
+  const blocks = [];
+
+  if (notesPath) {
+    try {
+      const rawNotes = await fs.readFile(notesPath, "utf8");
+      const noteLines = extractRelevantProjectLines(rawNotes, modeId === "court" ? 22 : 12);
+      if (noteLines.length) {
+        blocks.push([
+          `Project notes for ${projectLabel || modeId || "project"}. Use these as background context when relevant.`,
+          ...noteLines.map(line => `- ${line}`)
+        ].join("\n"));
+      }
+    } catch (err) {
+      if (err?.code !== "ENOENT") {
+        console.warn("[CommandDesk] Failed reading project notes context", notesPath, err?.message || err);
+      }
+    }
+  }
+
+  if (modeId === "court") {
+    try {
+      const rawStance = await fs.readFile(legalCaseStancePath, "utf8");
+      const stanceLines = extractRelevantProjectLines(rawStance, 18);
+      if (stanceLines.length) {
+        blocks.push([
+          `Legal case stance and drafting posture for custody work. Follow this perspective when answering legal/court requests.`,
+          ...stanceLines.map(line => `- ${line}`)
+        ].join("\n"));
+      }
+    } catch (err) {
+      if (err?.code !== "ENOENT") {
+        console.warn("[CommandDesk] Failed reading legal case stance", err?.message || err);
+      }
+    }
+  }
+
+  return blocks.map(content => ({ role: "system", content: `Agent \"${agentId || "main"}\" project context:\n${content}` }));
+}
+
+function buildMemoryContextMessages({ memoryState, todayNotes = [], agentId }) {
+  const lines = [];
+  collectMemoryLines(memoryState, "", lines, 18);
+
+  if (Array.isArray(todayNotes)) {
+    todayNotes
+      .map(note => typeof note?.text === "string" ? note.text.trim() : "")
+      .filter(Boolean)
+      .slice(0, 5)
+      .forEach(text => {
+        if (lines.length < 24) {
+          lines.push(`today_note: ${text}`);
+        }
+      });
+  }
+
+  if (!lines.length) {
+    return [];
+  }
+
+  const content = [
+    `Persistent OpenClaw Hub memory for agent "${agentId || "main"}". Use this context when it is relevant, but do not mention the memory block unless it helps the answer.`,
+    ...lines.map(line => `- ${line}`)
+  ].join("\n");
+
+  return [{ role: "system", content }];
+}
+
+function sanitizeGoogleClientId(clientId) {
+  const value = String(clientId || "").trim();
+  if (!value) {
+    return "(empty)";
+  }
+  if (value.length <= 18) {
+    return value;
+  }
+  return `${value.slice(0, 12)}...${value.slice(-10)}`;
+}
+
+function resetGoogleAuthRuntimeState(reason = "reset") {
+  const hadCodeVerifier = Boolean(googleAuthRuntimeState.codeVerifier);
+  const hadState = Boolean(googleAuthRuntimeState.state);
+  const hadRedirectUri = Boolean(googleAuthRuntimeState.redirectUri);
+  const hadClientMetadata = Boolean(
+    googleAuthRuntimeState.authorizeClientId
+    || googleAuthRuntimeState.tokenClientId
+    || googleAuthRuntimeState.savedClientId
+    || googleAuthRuntimeState.resolvedClientId
+  );
+
+  googleAuthRuntimeState.codeVerifier = null;
+  googleAuthRuntimeState.state = null;
+  googleAuthRuntimeState.redirectUri = null;
+  googleAuthRuntimeState.authorizeClientId = null;
+  googleAuthRuntimeState.tokenClientId = null;
+  googleAuthRuntimeState.savedClientId = null;
+  googleAuthRuntimeState.resolvedClientId = null;
+  googleAuthRuntimeState.lastDiagnostics = {
+    reason,
+    resetAt: new Date().toISOString(),
+    hadCodeVerifier,
+    hadState,
+    hadRedirectUri,
+    hadClientMetadata
+  };
+
+  return {
+    hadCodeVerifier,
+    hadState,
+    hadRedirectUri,
+    hadClientMetadata
+  };
+}
+
+async function disconnectGoogleAccountAndResetState(reason = "manual-disconnect") {
+  try {
+    return await disconnectGoogleAccount();
+  } finally {
+    resetGoogleAuthRuntimeState(reason);
+  }
+}
+
+function buildPkceCodeChallenge(codeVerifier) {
+  return createHash("sha256")
+    .update(codeVerifier)
+    .digest("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+async function startGoogleOAuthCallbackServer() {
+  return await new Promise((resolve, reject) => {
+    let callbackResolve;
+    let callbackReject;
+
+    const waitForCallback = new Promise((resolveCallback, rejectCallback) => {
+      callbackResolve = resolveCallback;
+      callbackReject = rejectCallback;
+    });
+
+    const server = createServer((req, res) => {
+      const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
+      const code = requestUrl.searchParams.get("code");
+      const state = requestUrl.searchParams.get("state");
+      const error = requestUrl.searchParams.get("error");
+
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(`
+        <!doctype html>
+        <html>
+          <body style="font-family: sans-serif; padding: 24px;">
+            <h2>Google sign-in complete</h2>
+            <p>You can close this window and return to OpenClaw Hub.</p>
+          </body>
+        </html>
+      `);
+
+      setTimeout(() => {
+        server.close(() => {});
+      }, 50);
+
+      callbackResolve({ code, state, error });
+    });
+
+    server.once("error", error => {
+      callbackReject(error);
+      reject(error);
+    });
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address !== "object") {
+        const error = new Error("Unable to start Google OAuth callback server.");
+        callbackReject(error);
+        reject(error);
+        return;
+      }
+
+      const close = () =>
+        new Promise(serverResolve => {
+          if (!server.listening) {
+            serverResolve();
+            return;
+          }
+          server.close(() => serverResolve());
+        });
+
+      resolve({
+        redirectUri: `http://127.0.0.1:${address.port}`,
+        waitForCallback,
+        close
+      });
+    });
+  });
+}
+
+async function connectGoogleAccountInteractive() {
+  if (googleAuthFlowPromise) {
+    return googleAuthFlowPromise;
+  }
+
+  googleAuthFlowPromise = (async () => {
+    const settings = await loadSettings();
+    const savedClientId = typeof settings?.googleClientId === "string"
+      ? settings.googleClientId.trim()
+      : "";
+    const resolvedClientId = await getGoogleClientId();
+
+    if (!resolvedClientId) {
+      throw new Error("Set a Google OAuth client ID in the API settings tab before connecting.");
+    }
+
+    const loadedClientIdMatchesSaved = Boolean(savedClientId) && savedClientId === resolvedClientId;
+    const staleFlowReset = resetGoogleAuthRuntimeState("pre-connect-reset");
+    const existingTokens = await getGoogleTokens().catch(() => null);
+    let staleTokensCleared = false;
+    if (existingTokens?.oauthClientId && existingTokens.oauthClientId !== resolvedClientId) {
+      await clearGoogleTokens();
+      staleTokensCleared = true;
+    }
+
+    const codeVerifier = randomBytes(48)
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+    const state = randomBytes(24).toString("hex");
+    const codeChallenge = buildPkceCodeChallenge(codeVerifier);
+    googleAuthRuntimeState.codeVerifier = codeVerifier;
+    googleAuthRuntimeState.state = state;
+    googleAuthRuntimeState.savedClientId = savedClientId || null;
+    googleAuthRuntimeState.resolvedClientId = resolvedClientId;
+
+    const callbackServer = await startGoogleOAuthCallbackServer();
+    let closeCallbackServer = callbackServer.close;
+    googleAuthRuntimeState.redirectUri = callbackServer.redirectUri;
+
+    try {
+      const authUrl = await buildGoogleAuthorizationUrl({
+        clientId: resolvedClientId,
+        redirectUri: callbackServer.redirectUri,
+        state,
+        codeChallenge
+      });
+      googleAuthRuntimeState.authorizeClientId = resolvedClientId;
+
+      console.info("[GoogleAuth] Starting desktop PKCE connect", {
+        authorizeUrlRedirectUri: callbackServer.redirectUri,
+        sanitizedClientId: sanitizeGoogleClientId(resolvedClientId),
+        sanitizedSavedClientId: sanitizeGoogleClientId(savedClientId),
+        loadedClientIdMatchesSaved,
+        staleTokensCleared,
+        staleFlowCleared: Boolean(
+          staleFlowReset.hadCodeVerifier
+          || staleFlowReset.hadState
+          || staleFlowReset.hadRedirectUri
+        ),
+        staleClientMetadataCleared: Boolean(staleFlowReset.hadClientMetadata)
+      });
+
+      googleAuthWindow = new BrowserWindow({
+        width: 540,
+        height: 760,
+        parent: mainWindow ?? undefined,
+        modal: Boolean(mainWindow),
+        autoHideMenuBar: true,
+        show: false,
+        title: "Connect Google",
+        webPreferences: {
+          contextIsolation: true,
+          sandbox: true,
+          partition: SHARED_WEBAPP_PARTITION
+        }
+      });
+
+      googleAuthWindow.setMenuBarVisibility(false);
+      googleAuthWindow.once("ready-to-show", () => {
+        if (!googleAuthWindow?.isDestroyed()) {
+          googleAuthWindow.show();
+          googleAuthWindow.focus();
+        }
+      });
+
+      const closedEarlyPromise = new Promise((_, reject) => {
+        googleAuthWindow.once("closed", () => {
+          reject(new Error("Google sign-in was closed before completing."));
+        });
+      });
+
+      await googleAuthWindow.loadURL(authUrl);
+
+      const callbackResult = await Promise.race([
+        callbackServer.waitForCallback,
+        closedEarlyPromise
+      ]);
+
+      if (callbackResult?.error) {
+        throw new Error(`Google OAuth failed: ${callbackResult.error}`);
+      }
+
+      if (!callbackResult?.code) {
+        throw new Error("Google OAuth did not return an authorization code.");
+      }
+
+      if (callbackResult.state !== state) {
+        throw new Error("Google OAuth state mismatch.");
+      }
+
+      try {
+        googleAuthRuntimeState.tokenClientId = resolvedClientId;
+        await exchangeGoogleAuthCode({
+          clientId: resolvedClientId,
+          code: callbackResult.code,
+          redirectUri: callbackServer.redirectUri,
+          codeVerifier
+        });
+      } catch (err) {
+        console.error("[GoogleAuth] Token exchange failed", {
+          httpStatus: err?.googleStatus ?? null,
+          error: err?.googleCode || null,
+          errorDescription: err?.googleDescription || err?.message || null,
+          rawPayload: err?.googlePayload || null,
+          redirectUriUsed: callbackServer.redirectUri,
+          authorizeRedirectUriUsed: googleAuthRuntimeState.redirectUri,
+          sanitizedClientIdUsed: sanitizeGoogleClientId(resolvedClientId),
+          sanitizedSavedClientId: sanitizeGoogleClientId(savedClientId),
+          loadedClientIdMatchesSaved,
+          authorizeAndTokenClientIdMatch: googleAuthRuntimeState.authorizeClientId === resolvedClientId,
+          authorizeAndTokenRedirectUriMatch: googleAuthRuntimeState.redirectUri === callbackServer.redirectUri,
+          staleTokensCleared,
+          staleFlowCleared: Boolean(
+            staleFlowReset.hadCodeVerifier
+            || staleFlowReset.hadState
+            || staleFlowReset.hadRedirectUri
+          ),
+          staleClientMetadataCleared: Boolean(staleFlowReset.hadClientMetadata)
+        });
+        throw err;
+      }
+
+      console.info("[GoogleAuth] Token exchange succeeded", {
+        redirectUriUsed: callbackServer.redirectUri,
+        sanitizedClientIdUsed: sanitizeGoogleClientId(resolvedClientId),
+        loadedClientIdMatchesSaved,
+        authorizeAndTokenClientIdMatch: googleAuthRuntimeState.authorizeClientId === resolvedClientId,
+        authorizeAndTokenRedirectUriMatch: googleAuthRuntimeState.redirectUri === callbackServer.redirectUri,
+        staleTokensCleared,
+        staleFlowCleared: Boolean(
+          staleFlowReset.hadCodeVerifier
+          || staleFlowReset.hadState
+          || staleFlowReset.hadRedirectUri
+        ),
+        staleClientMetadataCleared: Boolean(staleFlowReset.hadClientMetadata)
+      });
+
+      await loadDurableMemory();
+      return await getGoogleAuthStatus();
+    } finally {
+      resetGoogleAuthRuntimeState("connect-finished");
+      await closeCallbackServer?.();
+      closeCallbackServer = null;
+
+      if (googleAuthWindow && !googleAuthWindow.isDestroyed()) {
+        googleAuthWindow.close();
+      }
+      googleAuthWindow = null;
+    }
+  })();
+
+  try {
+    return await googleAuthFlowPromise;
+  } finally {
+    googleAuthFlowPromise = null;
+  }
+}
+
+function isGoogleAuthUnavailableError(err) {
+  const message = err?.message || String(err || "");
+  return /Google OAuth client ID is not configured|Google account is not connected/i.test(message);
+}
+
+async function buildGoogleAuthRequiredResponse(kind) {
+  const status = await getGoogleAuthStatus().catch(() => ({ configured: false, connected: false }));
+  const message = status.configured
+    ? "Connect Google in the API tab to enable this panel."
+    : "Save a Google OAuth desktop client ID in the API tab, then connect Google.";
+
+  return {
+    authRequired: true,
+    configured: Boolean(status.configured),
+    connected: Boolean(status.connected),
+    message,
+    kind
+  };
+}
+
+async function readCalendarSnapshot() {
+  try {
+    return await getGoogleCalendarSnapshot();
+  } catch (err) {
+    if (isGoogleAuthUnavailableError(err)) {
+      return {
+        today: [],
+        upcoming: null,
+        ...(await buildGoogleAuthRequiredResponse("calendar"))
+      };
+    }
+    console.error("Error in calendarSnapshot", err);
+    throw new Error("Unable to load calendar snapshot.");
+  }
+}
+
+async function readMissionWorkspaceSnapshot() {
+  const [workspaceResult, todayNotesResult, cronResult, calendarResult, durableMemoryResult] = await Promise.allSettled([
+    loadMissionWorkspaceSummary(),
+    readTodayNotes(),
+    readMissionCronJobs(),
+    readCalendarSnapshot(),
+    loadDurableMemory()
+  ]);
+
+  const workspace = workspaceResult.status === "fulfilled"
+    ? workspaceResult.value
+    : {
+      projects: [],
+      docs: { recent: [] },
+      totals: {
+        projectCount: 0,
+        notesReadyCount: 0,
+        openTaskCount: 0,
+        promotedConversationCount: 0
+      },
+      generatedAt: new Date().toISOString(),
+      error: workspaceResult.reason?.message || String(workspaceResult.reason || "unknown")
+    };
+
+  return {
+    ...workspace,
+    memory: {
+      shared: durableMemoryResult.status === "fulfilled" ? durableMemoryResult.value : (loadMemory() || {}),
+      todayNotes: todayNotesResult.status === "fulfilled" && Array.isArray(todayNotesResult.value)
+        ? todayNotesResult.value
+        : []
+    },
+    schedule: {
+      alarm: serializeAlarm(activeAlarm),
+      cron: cronResult.status === "fulfilled"
+        ? cronResult.value
+        : { dir: null, jobs: [], error: cronResult.reason?.message || String(cronResult.reason || "unknown") },
+      calendar: calendarResult.status === "fulfilled"
+        ? calendarResult.value
+        : { today: [], upcoming: null, error: calendarResult.reason?.message || String(calendarResult.reason || "unknown") }
+    }
+  };
+}
 
 if (useNoSandbox) {
   app.commandLine.appendSwitch("no-sandbox");
@@ -858,6 +1844,20 @@ function parseCommandArgValue(tokens, optionName) {
     }
   }
   return "";
+}
+
+function resolveKnownCommandAppUrl(commandLine) {
+  const tokens = normalizeLaunchCommandTokens(splitCommandLine(String(commandLine || "").trim()));
+  if (!tokens.length) {
+    return null;
+  }
+
+  const appId = parseCommandArgValue(tokens.slice(1), "--app-id");
+  if (!appId) {
+    return null;
+  }
+
+  return normalizeWebUrl(APP_ID_URL_FALLBACKS[appId] || "");
 }
 
 function normalizeChromiumPlacementBounds(rawPlacement) {
@@ -3073,9 +4073,9 @@ app.on("activate", () => {
   }
 });
 
-ipcMain.handle("memory:load", async () => loadMemory());
+ipcMain.handle("memory:load", async () => loadDurableMemory());
 
-ipcMain.handle("memory:save", async (_event, updates) => saveMemory(updates));
+ipcMain.handle("memory:save", async (_event, updates) => saveDurableMemory(updates));
 
 ipcMain.handle("system:stats", async () => readSystemStats());
 
@@ -3090,6 +4090,30 @@ ipcMain.handle("openclaw:connectionStatus", async (_event, payload) => {
   }
 
   return getGatewayConnectionStatus();
+});
+
+ipcMain.handle("openclaw:modelRoute", async (_event, payload) => {
+  const agentId = typeof payload?.agentId === "string" && payload.agentId.trim()
+    ? payload.agentId.trim()
+    : "main";
+
+  const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+  const raw = await fs.readFile(configPath, "utf8");
+  const config = JSON.parse(raw);
+  const defaults = config?.agents?.defaults || {};
+  const perAgent = config?.agents?.[agentId] || {};
+  const primary = perAgent?.model?.primary || defaults?.model?.primary || null;
+  const fallbacks = Array.isArray(perAgent?.model?.fallbacks)
+    ? perAgent.model.fallbacks
+    : (Array.isArray(defaults?.model?.fallbacks) ? defaults.model.fallbacks : []);
+
+  return {
+    agentId,
+    primary,
+    fallback: fallbacks[0] || null,
+    fallbacks,
+    fallbackCount: fallbacks.length
+  };
 });
 
 ipcMain.handle("tab:detach", async (_event, moduleName) => {
@@ -3157,6 +4181,32 @@ ipcMain.handle("history:delete", async (_event, payload) => {
   }
 });
 
+ipcMain.handle("history:update", async (_event, payload) => {
+  const id = payload?.id;
+  const patch = payload?.patch && typeof payload.patch === "object" ? payload.patch : null;
+  if (!id || !patch) {
+    throw new Error("Missing conversation update payload.");
+  }
+  try {
+    const chats = await readMergedChats();
+    const index = chats.findIndex(c => c.id === id);
+    if (index === -1) {
+      throw new Error("Conversation not found.");
+    }
+    const next = {
+      ...chats[index],
+      ...patch,
+      updated_at: patch.updated_at || new Date().toISOString()
+    };
+    chats[index] = next;
+    await writeMergedChats(chats);
+    return { ok: true, conversation: next };
+  } catch (err) {
+    console.error("Error updating chat history entry:", err);
+    throw new Error(err?.message || "Unable to update conversation.");
+  }
+});
+
 ipcMain.handle("config:getOpenAIKey", async () => {
   try {
     return await getOpenAIKey();
@@ -3176,9 +4226,69 @@ ipcMain.handle("config:setOpenAIKey", async (_event, key) => {
   }
 });
 
+ipcMain.handle("config:getGoogleAuthStatus", async () => {
+  try {
+    return await getGoogleAuthStatus();
+  } catch (err) {
+    console.error("Error reading Google auth status:", err);
+    throw new Error("Unable to read Google auth status.");
+  }
+});
+
+ipcMain.handle("config:setGoogleClientId", async (_event, value) => {
+  try {
+    const settingsBefore = await loadSettings();
+    const previousSavedClientId = typeof settingsBefore?.googleClientId === "string"
+      ? settingsBefore.googleClientId.trim()
+      : "";
+    const nextClientId = typeof value === "string" ? value.trim() : "";
+    const clientId = await setGoogleClientId(value);
+    if (!clientId) {
+      await disconnectGoogleAccountAndResetState("client-id-cleared");
+    } else if (previousSavedClientId !== nextClientId) {
+      console.info("[GoogleAuth] Google client ID changed; clearing stale auth state", {
+        previousSavedClientId: sanitizeGoogleClientId(previousSavedClientId),
+        nextSavedClientId: sanitizeGoogleClientId(nextClientId)
+      });
+      await disconnectGoogleAccountAndResetState("client-id-changed");
+    }
+    return {
+      stored: Boolean(clientId),
+      clientId,
+      status: await getGoogleAuthStatus()
+    };
+  } catch (err) {
+    console.error("Error saving Google OAuth client ID:", err);
+    throw new Error("Unable to store Google OAuth client ID.");
+  }
+});
+
+ipcMain.handle("google:connect", async () => {
+  try {
+    return await connectGoogleAccountInteractive();
+  } catch (err) {
+    console.error("Error connecting Google account:", err);
+    throw new Error(getGoogleUserFacingError(err, { stage: "connect" }));
+  }
+});
+
+ipcMain.handle("google:disconnect", async () => {
+  try {
+    return await disconnectGoogleAccountAndResetState("manual-disconnect");
+  } catch (err) {
+    console.error("Error disconnecting Google account:", err);
+    throw new Error(err?.message || "Unable to disconnect Google account.");
+  }
+});
+
 ipcMain.handle("chat:send", async (_event, payload) => {
   const text = typeof payload === "string" ? payload.trim() : (payload?.text || "");
   const conversationId = typeof payload === "object" ? payload.conversationId || null : null;
+  const requestedTitle = typeof payload?.title === "string" ? payload.title.trim() : "";
+  const requestedProjectId = typeof payload?.projectId === "string" ? payload.projectId.trim() : "";
+  const requestedProjectLabel = typeof payload?.projectLabel === "string" ? payload.projectLabel.trim() : "";
+  const requestedProjectContext = typeof payload?.projectContext === "string" ? payload.projectContext.trim() : "";
+  const requestedAttachments = Array.isArray(payload?.attachments) ? payload.attachments : [];
 
   let modeId = "trading";
   if (typeof payload === "object") {
@@ -3197,25 +4307,96 @@ ipcMain.handle("chat:send", async (_event, payload) => {
   }
 
   const mode = projectConfig[modeId] || projectConfig.trading;
-  const agentId = mode.agentId || "main";
+  const effectiveProjectId = requestedProjectId || mode.id || "trading";
+  const effectiveProjectLabel = requestedProjectLabel || mode.label || effectiveProjectId;
+  const requestedAgentId = typeof payload?.agentId === "string" && payload.agentId.trim()
+    ? payload.agentId.trim()
+    : "";
+  const agentId = requestedAgentId || mode.agentId || "main";
 
   if (!text) {
     return { error: "Message is empty." };
   }
 
   try {
-    const { reply } = await sendChatThroughGateway({ text, conversationId, agentId });
+    const [memoryState, todayNotes, projectContextMessages] = await Promise.all([
+      loadDurableMemory(),
+      readTodayNotes().catch(() => []),
+      buildProjectContextMessages({
+        modeId: effectiveProjectId,
+        projectLabel: effectiveProjectLabel,
+        notesPath: mode.notesPath,
+        agentId
+      })
+    ]);
+    const contextMessages = [
+      ...buildMemoryContextMessages({ memoryState, todayNotes, agentId }),
+      ...projectContextMessages
+    ];
+
+    if (requestedProjectContext) {
+      contextMessages.push({
+        role: "system",
+        content: `Conversation-specific project context for ${effectiveProjectLabel}:\n- ${requestedProjectContext.replace(/\r?\n/g, "\n- ")}`
+      });
+    }
+
+    if (requestedAttachments.length) {
+      const attachmentEntries = await Promise.all(requestedAttachments.slice(0, 6).map(async item => {
+        const filePath = typeof item?.filePath === "string" ? item.filePath.trim() : "";
+        const name = typeof item?.name === "string" ? item.name.trim() : "";
+        if (!filePath) return null;
+        const snippet = await extractAttachmentSnippet(filePath);
+        return {
+          label: `${name || path.basename(filePath)}: ${filePath}`,
+          snippet
+        };
+      }));
+
+      const attachmentLines = attachmentEntries
+        .filter(Boolean)
+        .map(item => `- ${item.label}`);
+
+      if (attachmentLines.length) {
+        contextMessages.push({
+          role: "system",
+          content: `The user attached real workspace documents to this request. Do not say you cannot see the file unless no extracted content preview is present. Treat these files as part of the working record for this turn:\n${attachmentLines.join("\n")}`
+        });
+      }
+
+      const extractedEntries = attachmentEntries.filter(item => item?.snippet);
+      if (extractedEntries.length) {
+        contextMessages.push({
+          role: "system",
+          content: `Attached document text was successfully extracted for this request. Use it directly when answering, and speak as if you have reviewed the file.`
+        });
+      }
+
+      extractedEntries.forEach(item => {
+        contextMessages.push({
+          role: "system",
+          content: `Extracted content preview from attached file ${item.label}:\n${item.snippet}`
+        });
+      });
+    }
+
+    const { reply } = await sendChatThroughGateway({ text, conversationId, agentId, contextMessages });
 
     // Persist transcript locally so CommandDesk chat history survives restarts
     try {
       const chats = await readMergedChats();
       const id = conversationId || `conv-${Date.now()}`;
       let conv = chats.find(c => c.id === id);
+      const now = new Date().toISOString();
       if (!conv) {
         conv = {
           id,
-          title: payload?.title || "New chat",
-          created_at: new Date().toISOString(),
+          title: requestedTitle || "New chat",
+          created_at: now,
+          updated_at: now,
+          agentId,
+          projectId: effectiveProjectId || null,
+          projectLabel: effectiveProjectLabel || null,
           messages: []
         };
         chats.push(conv);
@@ -3223,6 +4404,16 @@ ipcMain.handle("chat:send", async (_event, payload) => {
       conv.messages = conv.messages || [];
       conv.messages.push({ role: "user", content: text });
       conv.messages.push({ role: "assistant", content: reply || "" });
+      if (!requestedTitle || requestedTitle === "New chat") {
+        const compactTitle = text.replace(/\s+/g, " ").trim();
+        conv.title = compactTitle ? (compactTitle.length > 48 ? `${compactTitle.slice(0, 45)}...` : compactTitle) : (conv.title || "New chat");
+      } else {
+        conv.title = requestedTitle;
+      }
+      conv.agentId = agentId;
+      conv.projectId = effectiveProjectId || conv.projectId || null;
+      conv.projectLabel = effectiveProjectLabel || conv.projectLabel || null;
+      conv.updated_at = now;
       await writeMergedChats(chats);
     } catch (persistErr) {
       console.error("Error persisting chat transcript", persistErr);
@@ -3235,9 +4426,57 @@ ipcMain.handle("chat:send", async (_event, payload) => {
   }
 });
 
+ipcMain.handle("project:list", async () => {
+  return listMissionProjects().map(project => ({
+    id: project.id,
+    label: project.label,
+    agentId: project.agentId || "main",
+    notesPath: project.notesPath
+  }));
+});
+
+ipcMain.handle("agent:list", async () => {
+  return listAvailableAgents();
+});
+
+ipcMain.handle("chat:pickExistingFile", async (_event, payload) => {
+  const projectId = typeof payload?.projectId === "string" ? payload.projectId.trim() : "";
+  const mode = projectConfig[projectId] || null;
+  const defaultPath = mode?.notesPath
+    ? path.dirname(mode.notesPath)
+    : path.join(process.env.HOME || process.env.USERPROFILE || "", ".openclaw", "workspace");
+
+  const result = await dialog.showOpenDialog(mainWindow || undefined, {
+    title: projectId === "court" ? "Attach case file" : "Attach workspace file",
+    defaultPath,
+    properties: ["openFile"],
+    filters: [
+      { name: "Documents", extensions: ["pdf", "txt", "md", "doc", "docx", "rtf", "json", "csv", "jpg", "jpeg", "png", "webp"] },
+      { name: "All files", extensions: ["*"] }
+    ]
+  });
+
+  if (result.canceled || !result.filePaths?.length) {
+    return null;
+  }
+
+  const filePath = result.filePaths[0];
+  return {
+    filePath,
+    name: path.basename(filePath)
+  };
+});
+
+ipcMain.handle("chat:ttsSynthesize", async (_event, payload) => {
+  const text = typeof payload?.text === "string" ? payload.text : "";
+  const voice = typeof payload?.voice === "string" ? payload.voice : undefined;
+  const rate = typeof payload?.rate === "string" ? payload.rate : undefined;
+  return synthesizeEdgeTts(text, { voice, rate });
+});
+
 ipcMain.handle("project:promoteConversation", async (_event, payload) => {
   const conversation = payload?.conversation;
-  const modeId = payload?.modeId || "trading";
+  const modeId = payload?.modeId || conversation?.projectId || "trading";
   const mode = projectConfig[modeId] || projectConfig.trading;
 
   if (!conversation) {
@@ -3249,10 +4488,12 @@ ipcMain.handle("project:promoteConversation", async (_event, payload) => {
   const title = conversation.title || "Chat session";
   const created = conversation.created_at || new Date().toISOString();
   const id = conversation.id || conversation.conversationId || "(no-id)";
+  const projectLabel = conversation.projectLabel || mode.label;
 
   const lines = [];
   lines.push("\n\n---");
   lines.push(`\n## Promoted conversation – ${title}`);
+  lines.push(`- Project: ${projectLabel} (${mode.id})`);
   lines.push(`- Mode: ${mode.label} (${mode.id})`);
   lines.push(`- Promoted at: ${new Date().toISOString()}`);
   lines.push(`- Conversation id: ${id}`);
@@ -3283,43 +4524,23 @@ ipcMain.handle("project:promoteConversation", async (_event, payload) => {
 
 
 ipcMain.handle("home:listTasks", async () => {
-  const tasks = [];
-  const home = process.env.HOME || process.env.USERPROFILE || "";
-
   try {
-    const tradingPath = path.join(home, ".openclaw", "workspace", "crypto-engine", "NOTES.md");
-    const legalPath = path.join(home, ".openclaw", "workspace", "projects", "legal_custody", "NOTES.md");
-    const codingPath = path.join(home, ".openclaw", "workspace", "projects", "CODING_NOTES.md");
-
-    const entries = [
-      { mode: "trading", label: "TRADING", file: tradingPath },
-      { mode: "court", label: "COURT", file: legalPath },
-      { mode: "coding", label: "CODING", file: codingPath }
-    ];
-
-    for (const entry of entries) {
-      try {
-        const raw = await fs.readFile(entry.file, "utf8");
-        const lines = raw.split(/\r?\n/);
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          if (trimmed.startsWith("- [ ]") || trimmed.startsWith("- [  ]")) {
-            const text = trimmed.replace(/^-.*?\]\s*/, "").trim();
-            if (text) {
-              tasks.push({ mode: entry.mode, text });
-            }
-          }
-        }
-      } catch {
-        // ignore missing file
-      }
-    }
+    const summary = await loadMissionWorkspaceSummary();
+    const tasks = summary.projects.flatMap(project => (
+      Array.isArray(project.openTasks)
+        ? project.openTasks.map(task => ({
+          mode: project.id,
+          label: project.label,
+          text: task.text,
+          source: task.source
+        }))
+        : []
+    ));
+    return { tasks };
   } catch (err) {
     console.error("home:listTasks error", err);
+    return { tasks: [] };
   }
-
-  return { tasks };
 });
 
 // Mission Control state (Kanban + activity feed)
@@ -3395,6 +4616,24 @@ ipcMain.handle("mission:tasks:set", async (_event, state) => {
   return await writeMissionControlState(state);
 });
 
+ipcMain.handle("mission:workspace:get", async () => {
+  return await readMissionWorkspaceSnapshot();
+});
+
+ipcMain.handle("mission:path:open", async (_event, payload) => {
+  const targetPath = typeof payload?.path === "string" ? payload.path.trim() : "";
+  if (!targetPath) {
+    throw new Error("Path is required.");
+  }
+
+  const openResult = await shell.openPath(targetPath);
+  if (openResult) {
+    throw new Error(openResult);
+  }
+
+  return { ok: true, path: targetPath };
+});
+
 ipcMain.handle("mission:activity:tail", async (_event, payload) => {
   const offset = Math.max(0, Number(payload?.offset || 0));
   const limit = Math.max(1, Math.min(500, Number(payload?.limit || 100)));
@@ -3424,30 +4663,7 @@ ipcMain.handle("mission:activity:tail", async (_event, payload) => {
 });
 
 ipcMain.handle("mission:cron:list", async () => {
-  const home = process.env.HOME || process.env.USERPROFILE || "";
-  const cronDir = path.join(home, ".openclaw", "cron");
-  try {
-    const entries = await fs.readdir(cronDir, { withFileTypes: true });
-    const files = entries
-      .filter(entry => entry.isFile() && entry.name.endsWith(".json"))
-      .map(entry => entry.name);
-
-    const jobs = [];
-    for (const name of files) {
-      const file = path.join(cronDir, name);
-      try {
-        const raw = await fs.readFile(file, "utf8");
-        const json = JSON.parse(raw);
-        jobs.push({ file: name, ...json });
-      } catch {
-        jobs.push({ file: name, error: "unreadable" });
-      }
-    }
-
-    return { dir: cronDir, jobs };
-  } catch {
-    return { dir: cronDir, jobs: [] };
-  }
+  return await readMissionCronJobs();
 });
 
 ipcMain.handle("ticker:listSymbols", async () => {
@@ -3773,34 +4989,37 @@ ipcMain.handle("news:topStories", async () => {
 
 // Dashboard / integrations
 ipcMain.handle("google:gmailPrimarySnapshot", async () => {
-  // TODO: replace with real Gmail API integration, filtered to PRIMARY only.
-  // Temporary stub data so the dashboard shows something useful.
-  return {
-    unread: 0,
-    messages: []
-  };
+  try {
+    return await getGmailPrimarySnapshot({ maxMessages: 5 });
+  } catch (err) {
+    if (isGoogleAuthUnavailableError(err)) {
+      return {
+        unread: 0,
+        messages: [],
+        ...(await buildGoogleAuthRequiredResponse("gmail"))
+      };
+    }
+    console.error("Error loading Gmail snapshot", err);
+    throw new Error(getGoogleUserFacingError(err, { stage: "gmail" }));
+  }
 });
 
 ipcMain.handle("google:calendarSnapshot", async () => {
   try {
-    const events = await listNextEvents();
-    const today = [];
-    let upcoming = null;
-
-    if (Array.isArray(events) && events.length) {
-      // For now, treat all as "upcoming" and show the first as next.
-      upcoming = {
-        when: events[0].time || "",
-        title: events[0].title || "(untitled event)"
+    return await getGoogleCalendarSnapshot({ todayLimit: 10 });
+  } catch (err) {
+    if (isGoogleAuthUnavailableError(err)) {
+      return {
+        today: [],
+        upcoming: null,
+        ...(await buildGoogleAuthRequiredResponse("calendar"))
       };
     }
-
-    return { today, upcoming };
-  } catch (err) {
-    console.error("Error in calendarSnapshot", err);
-    throw new Error("Unable to load calendar snapshot.");
+    console.error("Error loading Google calendar snapshot", err);
+    throw new Error(getGoogleUserFacingError(err, { stage: "calendar" }));
   }
 });
+
 ipcMain.handle("google:addCalendarEvent", async (_event, payload) => {
   const title = payload?.title;
   const date = payload?.date;
@@ -3810,11 +5029,16 @@ ipcMain.handle("google:addCalendarEvent", async (_event, payload) => {
     throw new Error("Event title and date are required.");
   }
 
-  // TODO: Wire to real Google Calendar API to create an actual event.
-  // For now, log and return success so the UI flow is demonstrable.
-  console.log(`[CommandDesk] Add calendar event: "${title}" on ${date} at ${time}`);
-
-  return { ok: true, event: { title, date, time } };
+  try {
+    const event = await addGoogleCalendarEvent({ title, date, time });
+    return { ok: true, event };
+  } catch (err) {
+    if (isGoogleAuthUnavailableError(err)) {
+      throw new Error("Connect Google in the API tab before adding calendar events.");
+    }
+    console.error("Error creating Google calendar event", err);
+    throw new Error(getGoogleUserFacingError(err, { stage: "calendar-write" }));
+  }
 });
 
 ipcMain.handle("weather:current", async (_event, payload) => {
@@ -4141,6 +5365,25 @@ ipcMain.handle("webapp:saveWindowState", async (_event, payload) => {
 
   if (launchType === "app-command") {
     const target = resolveWebAppLaunchTarget(appEntry, null);
+    const knownAppUrl = resolveKnownCommandAppUrl(target);
+    if (knownAppUrl) {
+      const windowKey = `app:${appEntry.id}`;
+      const existing = webAppWindows.get(windowKey);
+      if (!existing || existing.isDestroyed()) {
+        throw new Error("Open the built-in window first, then save.");
+      }
+      const snapshot = captureWindowState(existing);
+      await persistWebAppWindowState(stateKey, snapshot, { manual: true });
+      return {
+        ok: true,
+        id: appEntry.id,
+        launchType: "internal-url",
+        stateKey,
+        source: "electron-window",
+        snapshot
+      };
+    }
+
     const tokens = normalizeLaunchCommandTokens(splitCommandLine(String(target || "")));
     const args = tokens.slice(1);
     const commandAppId = parseCommandArgValue(args, "--app-id");
@@ -4224,6 +5467,27 @@ ipcMain.handle("webapp:launch", async (_event, { id, urlOverride }) => {
   }
 
   if (launchType === "app-command") {
+    const knownAppUrl = resolveKnownCommandAppUrl(target);
+    if (knownAppUrl) {
+      const result = await launchChromiumWindow({
+        windowKey: `app:${appEntry.id}`,
+        stateKey: `app:${appEntry.id}`,
+        title: appEntry.name || appEntry.id,
+        url: knownAppUrl
+      });
+
+      return {
+        ...result,
+        launched: true,
+        reused: Boolean(result?.reused),
+        id: appEntry.id,
+        url: knownAppUrl,
+        launchType: "internal-url",
+        sourceLaunchType: launchType,
+        engine: "electron-chromium"
+      };
+    }
+
     await launchCommandTarget(target, {
       cwd: String(appEntry?.cwd || ""),
       stateKey: `app:${appEntry.id}`,

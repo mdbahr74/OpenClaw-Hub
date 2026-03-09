@@ -30,8 +30,23 @@ const bridge = {
   promoteConversation(payload) {
     return invoke("project:promoteConversation", payload);
   },
+  listProjects(payload) {
+    return invoke("project:list", payload);
+  },
+  listAgents(payload) {
+    return invoke("agent:list", payload);
+  },
   deleteChat(payload) {
     return invoke("history:delete", payload);
+  },
+  updateChat(payload) {
+    return invoke("history:update", payload);
+  },
+  pickExistingFile(payload) {
+    return invoke("chat:pickExistingFile", payload);
+  },
+  ttsSynthesize(payload) {
+    return invoke("chat:ttsSynthesize", payload);
   },
   newsTopStories() {
     return invoke("news:topStories");
@@ -68,6 +83,9 @@ const bridge = {
   },
   addCalendarEvent(event) {
     return invoke("google:addCalendarEvent", event);
+  },
+  getOpenClawModelRoute(payload) {
+    return invoke("openclaw:modelRoute", payload);
   }
 };
 
