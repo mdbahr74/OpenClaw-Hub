@@ -4,7 +4,7 @@
 
 <img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/fd8c1dec-4069-4448-b415-fb971c308dab" />
 
-<img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/142dce3a-f722-4e76-bbd0-86492464787f" />
+<img width="2082" height="1080" alt="image" src="https://github.com/user-attachments/assets/81e8802d-7ce6-472d-903b-2dcfe3ca7d49" />
 
 
 # OpenClaw Hub
